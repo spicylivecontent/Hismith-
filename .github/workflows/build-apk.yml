@@ -34,6 +34,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Read app version
+        id: version
+        run: |
+          VER=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VER"
+
       - name: Build debug + release APK
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
@@ -51,16 +58,36 @@ jobs:
           path: out/*.apk
           retention-days: 90
 
-      # Every push to main (and every v* tag) also publishes a GitHub Release so the
-      # APK can be downloaded straight to the phone without logging in to Actions.
+      # Publish versioned release (e.g. v1.1.0) on push or workflow_dispatch to main
+      - name: Publish versioned release
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Hismith Session v${{ steps.version.outputs.version }}
+          body: |
+            **Hismith Smart Session v${{ steps.version.outputs.version }}** (`${{ github.sha }}`)
+
+            ### Nyheter i v${{ steps.version.outputs.version }}
+            - **Luxury Dark/Gold-tema:** Nytt mörkt obsidian- och guldtema med tydliga kort och guldaccenter.
+            - **Flyttbara overlay-knappar:** `STOPP`, `SUPER SPRUT` och `Meny` är nu fritt flyttbara (drag-and-drop) och stannar kvar ovanpå både webbläsaren och helskärmsvideo.
+            - **Immersive Mode:** Döljer Androids systemfält (status- och navigeringsfält) i webbläsar- och videoläge, med möjlighet att fälla in adressfältet för 100 % skärmyta.
+            - **Landscape Video:** Automatisk växling till liggande läge (sensor-landscape) vid helskärmsvideo utan att ladda om sidan.
+
+            **Installera:** Ladda ner `HismithSession-release.apk` på telefonen, öppna filen och tillåt installation från okänd källa.
+          prerelease: false
+          make_latest: true
+          files: out/*.apk
+
+      # Also keep the rolling "latest" release tag updated
       - name: Publish "latest" release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Hismith Session – senaste bygget
+          name: Hismith Session – senaste bygget (v${{ steps.version.outputs.version }})
           body: |
-            Automatiskt bygge från `main` (${{ github.sha }}).
+            Automatiskt bygge v${{ steps.version.outputs.version }} från `main` (${{ github.sha }}).
 
             **Installera:** ladda ner `HismithSession-release.apk` på telefonen, öppna filen
             och tillåt installation från okänd källa.

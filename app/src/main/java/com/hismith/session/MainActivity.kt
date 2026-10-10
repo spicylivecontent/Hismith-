@@ -8,19 +8,27 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.*
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.*
 import android.provider.Settings
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.webkit.*
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlin.math.hypot
 
 @SuppressLint("MissingPermission")
 class MainActivity : AppCompatActivity() {
@@ -35,10 +43,12 @@ class MainActivity : AppCompatActivity() {
 
     private var service: SessionService? = null
     private var bound = false
+    private var isImmersiveActive = false
+    private var isTopBarHiddenInBrowser = false
 
+    private lateinit var rootContainer: FrameLayout
     private lateinit var controlPanel: View
     private lateinit var browserPanel: View
-    private lateinit var overlayBar: View
     private lateinit var webView: WebView
     private lateinit var browserTopBar: View
     private lateinit var fullscreenContainer: FrameLayout
@@ -60,6 +70,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var urlBar: EditText
     private lateinit var btnOverlayStop: MaterialButton
     private lateinit var btnOverlayMega: MaterialButton
+    private lateinit var btnOverlayBarToggle: MaterialButton
+    private lateinit var btnHideTopBar: MaterialButton
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -93,13 +105,12 @@ class MainActivity : AppCompatActivity() {
                     p.size >= 2 && p[0] != "LUBE_LAUNCHER" && p[1] == "1"
                 }
                 btnStart.isEnabled = hasMachine && !running
-                btnStart.alpha = if (btnStart.isEnabled) 1f else 0.5f
+                btnStart.alpha = if (btnStart.isEnabled) 1f else 0.45f
                 if (speed >= 0) speedText.text = "$speed %"
                 phase?.let { phaseText.text = it }
                 if (elapsed >= 0) timeText.text = "%02d:%02d".format(elapsed / 60, elapsed % 60)
                 if (progress >= 0f) progressBar.progress = (progress * 100).toInt()
 
-                // Device list summary
                 val lines = summary.split(";").filter { it.isNotBlank() }.mapNotNull { entry ->
                     val p = entry.split(":")
                     if (p.size >= 3) {
@@ -108,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                         "$ok $role (${p[2]})"
                     } else null
                 }
-                devicesText.text = if (lines.isEmpty()) "Inga enheter anslutna" else lines.joinToString("\n")
+                devicesText.text = if (lines.isEmpty()) "Inga enheter anslutna (tryck för att koppla från)" else lines.joinToString("\n")
             }
         }
     }
@@ -120,6 +131,7 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         setupWebView()
         setupClicks()
+        setupDraggableOverlays()
         loadSettings()
 
         val filter = IntentFilter(SessionService.BROADCAST_STATUS)
@@ -168,9 +180,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindViews() {
+        rootContainer = findViewById(R.id.rootContainer)
         controlPanel = findViewById(R.id.controlPanel)
         browserPanel = findViewById(R.id.browserPanel)
-        overlayBar = findViewById(R.id.overlayBar)
         webView = findViewById(R.id.webView)
         browserTopBar = findViewById(R.id.browserTopBar)
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
@@ -191,6 +203,8 @@ class MainActivity : AppCompatActivity() {
         urlBar = findViewById(R.id.urlBar)
         btnOverlayStop = findViewById(R.id.btnOverlayStop)
         btnOverlayMega = findViewById(R.id.btnOverlayMega)
+        btnOverlayBarToggle = findViewById(R.id.btnOverlayBarToggle)
+        btnHideTopBar = findViewById(R.id.btnHideTopBar)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -212,26 +226,50 @@ class MainActivity : AppCompatActivity() {
         )
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                if (customView != null) { callback?.onCustomViewHidden(); return }
+                if (customView != null) {
+                    callback?.onCustomViewHidden()
+                    return
+                }
                 customView = view
                 customViewCallback = callback
                 browserTopBar.visibility = View.GONE
-                overlayBar.visibility = View.GONE
                 webView.visibility = View.GONE
                 fullscreenContainer.visibility = View.VISIBLE
-                fullscreenContainer.addView(view)
-                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                if (view != null) {
+                    fullscreenContainer.addView(
+                        view,
+                        FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                }
+                // Rotate to sensor landscape for fullscreen video & activate immersive mode
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                setImmersiveMode(true)
+                // Keep draggable overlay buttons visible on top of fullscreen video
+                showOverlayButtons(showMenuToggle = false)
+                rootContainer.post { clampAllOverlaysToBounds() }
             }
+
             override fun onHideCustomView() {
-                fullscreenContainer.removeView(customView)
+                customView?.let { fullscreenContainer.removeView(it) }
                 customView = null
                 fullscreenContainer.visibility = View.GONE
                 webView.visibility = View.VISIBLE
-                browserTopBar.visibility = View.VISIBLE
-                if (browserPanel.visibility == View.VISIBLE) overlayBar.visibility = View.VISIBLE
-                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+
+                if (browserPanel.visibility == View.VISIBLE) {
+                    browserTopBar.visibility = if (isTopBarHiddenInBrowser) View.GONE else View.VISIBLE
+                    setImmersiveMode(true)
+                    showOverlayButtons(showMenuToggle = isTopBarHiddenInBrowser)
+                } else {
+                    setImmersiveMode(false)
+                    hideOverlayButtons()
+                }
                 customViewCallback?.onCustomViewHidden()
                 customViewCallback = null
+                rootContainer.post { clampAllOverlaysToBounds() }
             }
         }
         webView.loadUrl(prefs.getString("last_url", HOME_URL) ?: HOME_URL)
@@ -243,7 +281,10 @@ class MainActivity : AppCompatActivity() {
 
         btnStart.setOnClickListener {
             saveSettings()
-            if (service == null) { Toast.makeText(this, "Tjänsten är inte igång ännu", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (service == null) {
+                Toast.makeText(this, "Tjänsten är inte igång ännu", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             startService(Intent(this, SessionService::class.java).apply {
                 action = SessionService.ACTION_START_SESSION
                 putExtra("min", minTimeInput.text.toString().toIntOrNull() ?: 20)
@@ -273,6 +314,22 @@ class MainActivity : AppCompatActivity() {
         }
         btnOverlayMega.setOnClickListener {
             startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_MEGA_SPRAY))
+            Toast.makeText(this, "SUPER SPRUT", Toast.LENGTH_SHORT).show()
+        }
+        btnHideTopBar.setOnClickListener {
+            isTopBarHiddenInBrowser = true
+            browserTopBar.visibility = View.GONE
+            showOverlayButtons(showMenuToggle = true)
+            setImmersiveMode(true)
+        }
+        btnOverlayBarToggle.setOnClickListener {
+            if (customView != null) {
+                (webView.webChromeClient as? WebChromeClient)?.onHideCustomView()
+            } else {
+                isTopBarHiddenInBrowser = false
+                browserTopBar.visibility = View.VISIBLE
+                btnOverlayBarToggle.visibility = View.GONE
+            }
         }
 
         btnModeControl.setOnClickListener { showControlMode() }
@@ -284,6 +341,142 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnBrowserRefresh).setOnClickListener { webView.reload() }
         findViewById<MaterialButton>(R.id.btnGoUrl).setOnClickListener { navigateUrlBar() }
         urlBar.setOnEditorActionListener { _, _, _ -> navigateUrlBar(); true }
+    }
+
+    /**
+     * Makes floating overlay buttons freely draggable across the screen while preserving click events.
+     */
+    private fun setupDraggableOverlays() {
+        makeDraggable(btnOverlayStop, "overlay_stop")
+        makeDraggable(btnOverlayMega, "overlay_mega")
+        makeDraggable(btnOverlayBarToggle, "overlay_menu")
+        rootContainer.post { restoreOverlayPositions() }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun makeDraggable(view: View, prefKeyPrefix: String) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0f
+        var startY = 0f
+        var isDragging = false
+
+        view.setOnTouchListener { v, event ->
+            val parent = v.parent as? View ?: return@setOnTouchListener false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = v.x
+                    startY = v.y
+                    isDragging = false
+                    v.bringToFront()
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downRawX
+                    val dy = event.rawY - downRawY
+                    if (!isDragging && hypot(dx.toDouble(), dy.toDouble()) > touchSlop) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        val maxX = (parent.width - v.width).coerceAtLeast(0).toFloat()
+                        val maxY = (parent.height - v.height).coerceAtLeast(0).toFloat()
+                        v.x = (startX + dx).coerceIn(0f, maxX)
+                        v.y = (startY + dy).coerceIn(0f, maxY)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isDragging) {
+                        v.performClick()
+                    } else {
+                        val maxX = (parent.width - v.width).coerceAtLeast(1).toFloat()
+                        val maxY = (parent.height - v.height).coerceAtLeast(1).toFloat()
+                        prefs.edit()
+                            .putFloat("${prefKeyPrefix}_rx", (v.x / maxX).coerceIn(0f, 1f))
+                            .putFloat("${prefKeyPrefix}_ry", (v.y / maxY).coerceIn(0f, 1f))
+                            .apply()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    isDragging = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun restoreOverlayPositions() {
+        applySavedPositionOrClamp(btnOverlayStop, "overlay_stop")
+        applySavedPositionOrClamp(btnOverlayMega, "overlay_mega")
+        applySavedPositionOrClamp(btnOverlayBarToggle, "overlay_menu")
+    }
+
+    private fun applySavedPositionOrClamp(view: View, prefKeyPrefix: String) {
+        val parent = rootContainer
+        if (parent.width <= 0 || parent.height <= 0 || view.width <= 0 || view.height <= 0) return
+        val maxX = (parent.width - view.width).coerceAtLeast(0).toFloat()
+        val maxY = (parent.height - view.height).coerceAtLeast(0).toFloat()
+        if (prefs.contains("${prefKeyPrefix}_rx") && prefs.contains("${prefKeyPrefix}_ry")) {
+            val rx = prefs.getFloat("${prefKeyPrefix}_rx", 0f).coerceIn(0f, 1f)
+            val ry = prefs.getFloat("${prefKeyPrefix}_ry", 1f).coerceIn(0f, 1f)
+            view.x = rx * maxX
+            view.y = ry * maxY
+        } else {
+            view.x = view.x.coerceIn(0f, maxX)
+            view.y = view.y.coerceIn(0f, maxY)
+        }
+    }
+
+    private fun clampAllOverlaysToBounds() {
+        restoreOverlayPositions()
+    }
+
+    private fun showOverlayButtons(showMenuToggle: Boolean) {
+        btnOverlayStop.visibility = View.VISIBLE
+        btnOverlayMega.visibility = View.VISIBLE
+        btnOverlayBarToggle.visibility = if (showMenuToggle) View.VISIBLE else View.GONE
+        btnOverlayStop.bringToFront()
+        btnOverlayMega.bringToFront()
+        if (showMenuToggle) btnOverlayBarToggle.bringToFront()
+        rootContainer.post { restoreOverlayPositions() }
+    }
+
+    private fun hideOverlayButtons() {
+        btnOverlayStop.visibility = View.GONE
+        btnOverlayMega.visibility = View.GONE
+        btnOverlayBarToggle.visibility = View.GONE
+    }
+
+    /**
+     * Enables or disables Android edge-to-edge immersive mode (hiding status + navigation bars).
+     */
+    private fun setImmersiveMode(enabled: Boolean) {
+        isImmersiveActive = enabled
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (enabled) {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && isImmersiveActive) {
+            setImmersiveMode(true)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        rootContainer.postDelayed({ clampAllOverlaysToBounds() }, 100)
     }
 
     private fun showRemoveDeviceDialog() {
@@ -331,7 +524,6 @@ class MainActivity : AppCompatActivity() {
                 val name = result.scanRecord?.deviceName
                     ?: (try { result.device.name } catch (_: SecurityException) { null })
                     ?: return
-                // Accept any HISMITH-like name; user assigns role
                 val ok = name.contains("HISMITH", true) ||
                         name.contains("Hismith", true) ||
                         name.contains("Wildolo", true) ||
@@ -376,7 +568,8 @@ class MainActivity : AppCompatActivity() {
         if (customView != null) (webView.webChromeClient as? WebChromeClient)?.onHideCustomView()
         controlPanel.visibility = View.VISIBLE
         browserPanel.visibility = View.GONE
-        overlayBar.visibility = View.GONE
+        hideOverlayButtons()
+        setImmersiveMode(false)
         btnModeControl.alpha = 1f
         btnModeBrowser.alpha = 0.55f
     }
@@ -384,7 +577,9 @@ class MainActivity : AppCompatActivity() {
     private fun showBrowserMode() {
         controlPanel.visibility = View.GONE
         browserPanel.visibility = View.VISIBLE
-        overlayBar.visibility = View.VISIBLE
+        browserTopBar.visibility = if (isTopBarHiddenInBrowser) View.GONE else View.VISIBLE
+        setImmersiveMode(true)
+        showOverlayButtons(showMenuToggle = isTopBarHiddenInBrowser)
         btnModeControl.alpha = 0.55f
         btnModeBrowser.alpha = 1f
     }
