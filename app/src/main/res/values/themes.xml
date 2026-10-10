@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.HismithSession" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#2a9d8f</item>
-        <item name="colorPrimaryVariant">#1d6f65</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="android:statusBarColor">#0d0d0d</item>
-        <item name="android:navigationBarColor">#0d0d0d</item>
-        <item name="android:windowBackground">#0d0d0d</item>
+        <item name="colorPrimary">#D4AF37</item>
+        <item name="colorPrimaryVariant">#AA8220</item>
+        <item name="colorOnPrimary">#0A0A0C</item>
+        <item name="colorSecondary">#E5C158</item>
+        <item name="colorSecondaryVariant">#D4AF37</item>
+        <item name="colorOnSecondary">#0A0A0C</item>
+        <item name="android:colorBackground">#08080A</item>
+        <item name="colorSurface">#121216</item>
+        <item name="colorOnSurface">#F5F2EB</item>
+        <item name="android:statusBarColor">#08080A</item>
+        <item name="android:navigationBarColor">#08080A</item>
+        <item name="android:windowBackground">#08080A</item>
     </style>
 </resources>

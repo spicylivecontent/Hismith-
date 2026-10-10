@@ -11,11 +11,17 @@ APK:n byggs automatiskt av GitHub Actions vid varje push.
 
 | Var | Hur |
 |-----|-----|
-| **Releases** (enklast) | Gå till **Releases** → *Hismith Session – senaste bygget* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
+| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.1.0* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
 | **Actions** | Öppna senaste körningen av *Build APK* → **Artifacts** → `HismithSession-apk` (zip med både debug- och release-APK). |
 
 Installera: öppna filen i telefonen → tillåt *Installera från okänd källa* för din filhanterare/webbläsare → Installera.
 Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versioner installeras rakt över den gamla.
+
+### Nytt i v1.1.0
+- **Luxury Dark/Gold-tema:** Mörkt obsidian- och guldtema med tydliga kortsektioner.
+- **Flyttbara overlay-knappar:** `⋮⋮ STOPP`, `⋮⋮ SUPER SPRUT` och `⋮⋮ Meny` kan dras fritt över skärmen och sparas automatiskt i position, även ovanpå helskärmsvideo.
+- **Immersive Mode:** Systemfälten döljs i webbläsar- och videoläge, och adressfältet kan fällas in med *Dölj fält ▲* för maximal skärmyta.
+- **Landscape Video:** Helskärmsvideo i webbläsaren roterar automatiskt till liggande läge (sensor-landscape) utan att ladda om sidan.
 
 ## Använda appen
 
