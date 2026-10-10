@@ -44,7 +44,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Luxury Edition • v1.1.1"
+                        android:text="Luxury Edition • v1.2.0"
                         android:textColor="#8A8270"
                         android:textSize="11sp" />
                 </LinearLayout>
@@ -64,7 +64,7 @@
                     app:strokeWidth="1dp" />
             </LinearLayout>
 
-            <!-- Mode Switcher -->
+            <!-- Mode Switcher. Kontrollpanelen är startvyn; "Kontroll"-knappen finns bara i webbläsaren. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -72,25 +72,10 @@
                 android:paddingBottom="14dp">
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnModeControl"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:text="Kontrollpanel"
-                    android:textColor="#D4AF37"
-                    android:textStyle="bold"
-                    app:cornerRadius="12dp"
-                    app:strokeColor="#D4AF37"
-                    app:strokeWidth="1dp" />
-
-                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnModeBrowser"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:layout_marginStart="6dp"
                     android:layout_weight="1"
                     android:text="Webbläsare"
                     android:textColor="#E5C158"
@@ -519,6 +504,23 @@
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- Snabblänkar – knapparna fylls i från MainActivity.QUICK_LINKS -->
+        <HorizontalScrollView
+            android:id="@+id/quickLinksScroll"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="#101014"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/quickLinksRow"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp" />
+        </HorizontalScrollView>
 
         <WebView
             android:id="@+id/webView"

@@ -43,6 +43,12 @@ class SessionEngine(
     private var teaseStepEndMs = 0L
 
     fun start(minMinutes: Int, maxMinutes: Int, autoLubeEnabled: Boolean, smartStrokeEnabled: Boolean) {
+        // Reset speed state: otherwise a ramp starts from the speed of the PREVIOUS session
+        // (stop() never ticks the ramp down), and the machine jumps to that speed immediately.
+        currentSpeed = 0
+        targetSpeed = 0
+        rampStartSpeed = 0
+        rampStartMs = System.currentTimeMillis()
         autoLube = autoLubeEnabled
         smartStroke = smartStrokeEnabled
         durationMs = if (maxMinutes <= 0) 0L else {
@@ -64,7 +70,8 @@ class SessionEngine(
     fun stop() {
         isRunning = false
         phase = Phase.IDLE
-        rampTo(0, 600)
+        currentSpeed = 0
+        targetSpeed = 0
         onSpeed(0)
         onPhase("Stoppad")
     }
@@ -108,6 +115,8 @@ class SessionEngine(
             }
             if (remaining <= 0) {
                 isRunning = false
+                currentSpeed = 0
+                targetSpeed = 0
                 onSpeed(0)
                 onPhase("Session klar")
                 onFinished()

@@ -8,7 +8,9 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.*
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.*
@@ -37,7 +39,25 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_PERMS = 1001
         private const val HOME_URL = "https://www.pornhub.com"
         private const val SCAN_TIMEOUT_MS = 5500L
+
+        /** A tap counts as a user gesture for this long (used by the popup/redirect guard). */
+        private const val USER_TOUCH_WINDOW_MS = 1500L
+
+        /** Snabblänkar i webbläsarens verktygsfält (label → URL). */
+        val QUICK_LINKS = listOf(
+            "Pornhub" to "https://www.pornhub.com",
+            "XVideos" to "https://www.xvideos.com",
+            "XNXX" to "https://www.xnxx.com",
+            "xHamster" to "https://xhamster.com",
+            "RedTube" to "https://www.redtube.com",
+            "YouPorn" to "https://www.youporn.com",
+            "SpankBang" to "https://spankbang.com"
+        )
     }
+
+    /** Timestamp of the last finger-down/up inside the WebView (see [AdBlockWebViewClient]). */
+    private var lastUserTouchMs = 0L
+    private var lastBlockToastMs = 0L
 
     private var serviceStarted = false
     private var pendingScanRole: DeviceRole? = null
@@ -72,9 +92,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSpray: MaterialButton
     private lateinit var btnMegaInControl: MaterialButton
     private lateinit var btnEmergency: MaterialButton
-    private lateinit var btnModeControl: MaterialButton
     private lateinit var btnModeBrowser: MaterialButton
     private lateinit var btnModeControlFromBrowser: MaterialButton
+    private lateinit var quickLinksRow: LinearLayout
     private lateinit var btnBrowserBack: MaterialButton
     private lateinit var btnBrowserForward: MaterialButton
     private lateinit var btnBrowserHome: MaterialButton
@@ -102,7 +122,9 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var scanTimeoutRunnable: Runnable? = null
     private var scanCallback: ScanCallback? = null
-    private val found = linkedMapOf<String, BluetoothDevice>()
+    /** Written by the BLE scan callback (binder thread), read on the UI thread – must be synchronised. */
+    private val found: MutableMap<String, BluetoothDevice> =
+        java.util.Collections.synchronizedMap(linkedMapOf<String, BluetoothDevice>())
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -231,6 +253,7 @@ class MainActivity : AppCompatActivity() {
         bindViews()
         refreshSessionControls()
         setupWebView()
+        setupQuickLinks()
         setupClicks()
         setupDraggableOverlays()
         loadSettings()
@@ -302,9 +325,9 @@ class MainActivity : AppCompatActivity() {
         btnSpray = findViewById(R.id.btnSpray)
         btnMegaInControl = findViewById(R.id.btnMegaInControl)
         btnEmergency = findViewById(R.id.btnEmergency)
-        btnModeControl = findViewById(R.id.btnModeControl)
         btnModeBrowser = findViewById(R.id.btnModeBrowser)
         btnModeControlFromBrowser = findViewById(R.id.btnModeControlFromBrowser)
+        quickLinksRow = findViewById(R.id.quickLinksRow)
         btnBrowserBack = findViewById(R.id.btnBrowserBack)
         btnBrowserForward = findViewById(R.id.btnBrowserForward)
         btnBrowserHome = findViewById(R.id.btnBrowserHome)
@@ -329,23 +352,95 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        // Debug builds only: lets you inspect the browser via chrome://inspect on a PC when
+        // checking which elements on a site are ads. Release builds are never debuggable.
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
-            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            // Plain http inside https pages is a classic injection path for ad / redirect scripts.
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            allowFileAccess = false
+            allowContentAccess = false
+            setGeolocationEnabled(false)
+            // No popup windows: window.open() is refused, so popunders cannot open new tabs.
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
             loadWithOverviewMode = true
             useWideViewPort = true
             builtInZoomControls = true
             displayZoomControls = false
             userAgentString = userAgentString.replace("; wv", "").replace("Version/4.0", "")
         }
+        // Third-party cookies (ad networks / trackers) are off; the site's own cookies still work.
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
+
+        // Record real finger events so the navigation guard can tell a click from a script redirect.
+        // Returning false keeps normal WebView handling (scrolling, video controls, links).
+        webView.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_UP) {
+                lastUserTouchMs = SystemClock.uptimeMillis()
+            }
+            false
+        }
+
+        // Nothing is downloaded or installed from the browser. "Uppdatera spelaren" / APK-bluffar
+        // are delivered as downloads, so refuse them instead of letting WebView save them.
+        webView.setDownloadListener { _, _, _, mimeType, _ ->
+            showBlockedToast("Nedladdning blockerad ($mimeType)")
+        }
+
         webView.webViewClient = AdBlockWebViewClient(
-            onPageStarted = { url -> runOnUiThread { urlBar.setText(url ?: "") } }
+            onPageStarted = { url -> runOnUiThread { urlBar.setText(url ?: "") } },
+            onBlocked = { reason -> runOnUiThread { showBlockedToast("Blockerade: $reason") } },
+            hasRecentUserTouch = { SystemClock.uptimeMillis() - lastUserTouchMs < USER_TOUCH_WINDOW_MS }
         )
         webView.webChromeClient = chromeClient
         webView.loadUrl(prefs.getString("last_url", HOME_URL) ?: HOME_URL)
+    }
+
+    /** One button per site in [QUICK_LINKS], shown in the browser toolbar. */
+    private fun setupQuickLinks() {
+        QUICK_LINKS.forEach { (label, url) ->
+            val button = MaterialButton(
+                this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
+            ).apply {
+                text = label
+                isAllCaps = false
+                textSize = 12f
+                setTextColor(0xFFE5C158.toInt())
+                backgroundTintList = ColorStateList.valueOf(0x00000000)
+                strokeColor = ColorStateList.valueOf(0xFF6E5A28.toInt())
+                strokeWidth = dp(1)
+                cornerRadius = dp(14)
+                minWidth = 0
+                minimumWidth = 0
+                minHeight = 0
+                minimumHeight = 0
+                insetTop = 0
+                insetBottom = 0
+                setPadding(dp(12), 0, dp(12), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(30)
+                ).apply { marginEnd = dp(6) }
+                setOnClickListener { loadUrlFromUser(url) }
+            }
+            quickLinksRow.addView(button)
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    /** Shows a message, but at most once every few seconds – popunder attempts come in bursts. */
+    private fun showBlockedToast(message: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastBlockToastMs < 4000) return
+        lastBlockToastMs = now
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
     private fun setupClicks() {
@@ -402,7 +497,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnModeControl.setOnClickListener { showControlMode() }
         btnModeBrowser.setOnClickListener { showBrowserMode() }
         btnModeControlFromBrowser.setOnClickListener { showControlMode() }
         btnBrowserBack.setOnClickListener { if (webView.canGoBack()) webView.goBack() }
@@ -691,7 +785,7 @@ class MainActivity : AppCompatActivity() {
             if (found.isEmpty()) {
                 statusText.text = "Ingen enhet hittad"
             } else {
-                val list = found.values.toList()
+                val list = synchronized(found) { found.values.toList() }
                 val labels = list.map { "${it.name ?: "?"}\n${it.address}" }.toTypedArray()
                 MaterialAlertDialogBuilder(this)
                     .setTitle("Välj enhet för: ${role.label}")
@@ -728,6 +822,13 @@ class MainActivity : AppCompatActivity() {
             url = if (url.contains(".") && !url.contains(" ")) "https://$url"
             else "https://duckduckgo.com/?q=${Uri.encode(url)}"
         }
+        loadUrlFromUser(url)
+    }
+
+    /** Navigation the user asked for (address bar or quick link). */
+    private fun loadUrlFromUser(url: String) {
+        urlBar.setText(url)
+        urlBar.clearFocus()
         webView.loadUrl(url)
         prefs.edit().putString("last_url", url).apply()
     }
@@ -744,7 +845,6 @@ class MainActivity : AppCompatActivity() {
 
         // Immersive in the whole app: clock + battery stay hidden in the control panel too.
         setImmersiveMode(true)
-        btnModeControl.alpha = 1f
         btnModeBrowser.alpha = 0.55f
     }
 
@@ -758,7 +858,6 @@ class MainActivity : AppCompatActivity() {
         refreshSessionControls()
 
         setImmersiveMode(true)
-        btnModeControl.alpha = 0.55f
         btnModeBrowser.alpha = 1f
     }
 

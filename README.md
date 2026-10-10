@@ -11,11 +11,28 @@ APK:n byggs automatiskt av GitHub Actions vid varje push.
 
 | Var | Hur |
 |-----|-----|
-| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.1.1* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
+| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.2.0* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
 | **Actions** | Öppna senaste körningen av *Build APK* → **Artifacts** → `HismithSession-apk` (zip med både debug- och release-APK). |
 
 Installera: öppna filen i telefonen → tillåt *Installera från okänd källa* för din filhanterare/webbläsare → Installera.
 Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versioner installeras rakt över den gamla.
+
+### Nytt i v1.2.0
+- **Kontrollpanel-knappen borttagen:** Startvyn är kontrollpanelen och *Webbläsare*-knappen är ensam i sitt fält. Knappen *⚙ Kontroll* finns kvar i webbläsarens verktygsfält för att gå tillbaka.
+- **Snabblänkar i webbläsaren:** Pornhub, XVideos, XNXX, xHamster, RedTube, YouPorn och SpankBang – en rad under adressfältet. Listan finns i `MainActivity.QUICK_LINKS`.
+- **Bättre adblock (`AdBlockWebViewClient`):**
+  - Path-regler matchar nu bara riktiga annonssegment (`/ads/`, `/adserver/`, `/popunder…`) i sökvägen – inte query-strängen och inte `/track/`, `/collect/`, `/analytics/` längre, som kunde bryta spellistor och uppspelning.
+  - Ogiltiga poster i värdlistan (t.ex. `facebook.com/tr`, `chaturbate.com/in`) och vanliga sajter (`stripchat.com`, `jasmin.com`) är borttagna. Fler kända adult-annonsnät är tillagda (ExoDynamic, ero-advertising, TrafficStars, Adcash m.fl.).
+  - Det kosmetiska filtret använde `[class*="ad-"]`, som också gömde `upload-`/`download-`-element. Det är nu smalare och körs redan vid sidstart.
+  - **Navigeringsskydd:** En sidladdning till en annan sajt som inte orsakats av ett tryck (popunder, falsk "uppdatera"-sida) avbryts. `intent:`/`market:`-länkar följs aldrig.
+  - Popup-fönster (`window.open`) är avstängda och nedladdningar blockeras, så inga APK/"spelare"-filer sparas.
+  - Tredjeparts-cookies är avstängda och blandat http-innehåll på https-sidor tillåts inte.
+- **Buggfixar:**
+  - Ny session kunde starta med hastigheten från föregående session, eftersom rampen inte nollställdes vid stopp.
+  - Auto-Lube (0,4 s) avbröt en pågående *SUPER SPRUT* eller slutklimax-sprut. En kortare spray ersätter nu inte längre en längre.
+  - Enhetslistan under BLE-sökning skrevs från en annan tråd utan synkronisering.
+  - Cleartext-HTTP är avstängt i manifestet (sajterna använder HTTPS).
+- Release-noteringarna i CI genereras nu automatiskt i stället för att vara hårdkodade till en version.
 
 ### Nytt i v1.1.1
 - **Immersive Mode i hela appen:** `setImmersiveMode(true)` körs i `onCreate`, `onResume`, kontrollpanel och webbläsare, med både `FLAG_FULLSCREEN` och `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. Klocka och batteristatus är därmed alltid dolda – även i kontrollpanelen.
@@ -36,7 +53,7 @@ Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versione
    Tryck på enhetslistan för att ta bort en enhet.
 3. Ställ in **Minsta/Högsta tid** (0 = obegränsat), **Auto-Lube**, ev. **Smart slaglängd**.
 4. **STARTA SESSION**.
-5. Växla till **Webbläsare**, kör fullscreen. **STOPP** och **SUPER SPRUT** ligger som flyttbara overlay-knappar (och i notisen) så länge en session körs – de döljs automatiskt när ingen session är igång.
+5. Växla till **Webbläsare** (snabblänkarna under adressfältet), kör fullscreen. Tillbaka till kontrollpanelen med **⚙ Kontroll**. **STOPP** och **SUPER SPRUT** ligger som flyttbara overlay-knappar (och i notisen) så länge en session körs – de döljs automatiskt när ingen session är igång.
 6. Sessionen avslutas automatiskt med final (stort sprut → nedvarvning → stopp), eller manuellt med *Avsluta* / *STOPP*.
 
 ### Algoritmen
