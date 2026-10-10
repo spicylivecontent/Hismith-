@@ -88,8 +88,15 @@ class AdBlockWebViewClient(
             "tsyndicate", "popads", "popcash", "propeller"
         )
 
-        private val EMPTY = WebResourceResponse(
-            "text/plain", "utf-8", ByteArrayInputStream(ByteArray(0))
+        private const val EMPTY_BODY_MIME = "text/plain"
+
+        /**
+         * A fresh empty response per blocked request: [WebResourceResponse] hands out its
+         * stream once, so sharing a single instance would leave later callers with an
+         * already-consumed (undefined) body.
+         */
+        private fun emptyResponse() = WebResourceResponse(
+            EMPTY_BODY_MIME, "utf-8", ByteArrayInputStream(ByteArray(0))
         )
 
         // Simple in-memory cache of decisions for speed
@@ -152,14 +159,14 @@ class AdBlockWebViewClient(
     ): WebResourceResponse? {
         val url = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
         if (shouldBlock(url)) {
-            return EMPTY
+            return emptyResponse()
         }
         return super.shouldInterceptRequest(view, request)
     }
 
     @Deprecated("Deprecated in Java")
     override fun shouldInterceptRequest(view: WebView?, url: String?): WebResourceResponse? {
-        if (url != null && shouldBlock(url)) return EMPTY
+        if (url != null && shouldBlock(url)) return emptyResponse()
         return super.shouldInterceptRequest(view, url)
     }
 

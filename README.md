@@ -11,17 +11,23 @@ APK:n byggs automatiskt av GitHub Actions vid varje push.
 
 | Var | Hur |
 |-----|-----|
-| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.1.0* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
+| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.1.1* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
 | **Actions** | Öppna senaste körningen av *Build APK* → **Artifacts** → `HismithSession-apk` (zip med både debug- och release-APK). |
 
 Installera: öppna filen i telefonen → tillåt *Installera från okänd källa* för din filhanterare/webbläsare → Installera.
 Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versioner installeras rakt över den gamla.
 
+### Nytt i v1.1.1
+- **Immersive Mode i hela appen:** `setImmersiveMode(true)` körs i `onCreate`, `onResume`, kontrollpanel och webbläsare, med både `FLAG_FULLSCREEN` och `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. Klocka och batteristatus är därmed alltid dolda – även i kontrollpanelen.
+- **Helskärmsvideo som faktiskt fungerar:** Vid `onShowCustomView` döljs inte WebView och skärmorienteringen tvingas inte längre, och overlay-knapparna anropar inte `bringToFront()` vid tryck. Helskärmsknappen på videor i webbläsaren fungerar utan att WebView avbryter helskärmsläget.
+- **Stoppknappar endast vid körning:** `STOPP` (nödstopp) och overlay-knapparna `⋮⋮ STOPP` / `⋮⋮ SUPER SPRUT` visas bara när en maskin är ansluten **och** en session är igång (`isSessionRunning == true`); annars döljs de.
+- **Robusthet:** BLE-sökning som alltid avslutas (inkl. `onScanFailed`), WebView som tas ur vyn innan `destroy()`, inga dialoger efter att aktiviteten avslutats och en unik tom adblock-respons per blockering.
+
 ### Nytt i v1.1.0
 - **Luxury Dark/Gold-tema:** Mörkt obsidian- och guldtema med tydliga kortsektioner.
 - **Flyttbara overlay-knappar:** `⋮⋮ STOPP`, `⋮⋮ SUPER SPRUT` och `⋮⋮ Meny` kan dras fritt över skärmen och sparas automatiskt i position, även ovanpå helskärmsvideo.
 - **Immersive Mode:** Systemfälten döljs i webbläsar- och videoläge, och adressfältet kan fällas in med *Dölj fält ▲* för maximal skärmyta.
-- **Landscape Video:** Helskärmsvideo i webbläsaren roterar automatiskt till liggande läge (sensor-landscape) utan att ladda om sidan.
+- **Landscape Video:** Helskärmsvideo i webbläsaren roterar automatiskt till liggande läge (sensor-landscape) utan att ladda om sidan. *(I v1.1.1 tas den tvingade rotationen bort eftersom den avbröt helskärmsläget – videon styr i stället orientationen själv.)*
 
 ## Använda appen
 
@@ -30,7 +36,7 @@ Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versione
    Tryck på enhetslistan för att ta bort en enhet.
 3. Ställ in **Minsta/Högsta tid** (0 = obegränsat), **Auto-Lube**, ev. **Smart slaglängd**.
 4. **STARTA SESSION**.
-5. Växla till **Webbläsare**, kör fullscreen. **STOPP** och **SUPER SPRUT** ligger alltid som overlay längst ner och i notisen.
+5. Växla till **Webbläsare**, kör fullscreen. **STOPP** och **SUPER SPRUT** ligger som flyttbara overlay-knappar (och i notisen) så länge en session körs – de döljs automatiskt när ingen session är igång.
 6. Sessionen avslutas automatiskt med final (stort sprut → nedvarvning → stopp), eller manuellt med *Avsluta* / *STOPP*.
 
 ### Algoritmen
