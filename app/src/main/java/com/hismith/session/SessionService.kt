@@ -316,17 +316,31 @@ class SessionService : Service() {
 
     // ------------------------------------------------------------------ Lube
 
-    /** Run the launcher pump for [seconds]. A new spray extends/replaces the current one. */
+    /** Absolute end time of the spray that is currently running (0 = none). */
+    private var sprayEndMs = 0L
+
+    /**
+     * Run the launcher pump for [seconds]. A new spray only replaces the running one if it lasts
+     * longer – otherwise the 0.4 s auto-lube pulse would cut a SUPER SPRUT or the final climax short.
+     */
     private fun spray(seconds: Double) {
+        val end = System.currentTimeMillis() + (seconds * 1000).toLong()
+        if (end <= sprayEndMs) return
+        sprayEndMs = end
         sprayJob?.cancel()
-        sprayJob = scope.launch { doSprayAll(seconds) }
+        sprayJob = scope.launch { doSprayAll(end) }
     }
 
-    private suspend fun doSprayAll(seconds: Double) {
+    private fun cancelSpray() {
+        sprayJob?.cancel()
+        sprayJob = null
+        sprayEndMs = 0L
+    }
+
+    private suspend fun doSprayAll(endMs: Long) {
         val lubes = devices.values.filter { it.role == DeviceRole.LUBE_LAUNCHER && it.connected }
         if (lubes.isEmpty()) return
-        val end = System.currentTimeMillis() + (seconds * 1000).toLong()
-        while (System.currentTimeMillis() < end && scope.isActive) {
+        while (System.currentTimeMillis() < endMs && scope.isActive) {
             lubes.forEach { send(it, HismithProtocol.LUBE_SQUIRT_SHORT) }
             delay(280)
         }
@@ -356,7 +370,7 @@ class SessionService : Service() {
     private fun stopSessionInternal() {
         engine.stop()
         tickJob?.cancel()
-        sprayJob?.cancel()
+        cancelSpray()
         applySpeedToAllMachines(0)
         devices.values.forEach { dev ->
             if (dev.role != DeviceRole.LUBE_LAUNCHER) {
@@ -371,7 +385,7 @@ class SessionService : Service() {
     fun emergencyStop() {
         engine.emergencyStop()
         tickJob?.cancel()
-        sprayJob?.cancel()
+        cancelSpray()
         // Drop anything pending so the stop commands go out first.
         devices.values.forEach { it.queue.clear() }
         devices.values.forEach { dev ->
@@ -452,7 +466,7 @@ class SessionService : Service() {
     }
 
     override fun onDestroy() {
-        tickJob?.cancel(); reconnectJob?.cancel(); sprayJob?.cancel()
+        tickJob?.cancel(); reconnectJob?.cancel(); cancelSpray()
         devices.values.forEach { dev ->
             try {
                 if (dev.connected && dev.role != DeviceRole.LUBE_LAUNCHER) {

@@ -28,7 +28,7 @@
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.HismithSession"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".MainActivity"

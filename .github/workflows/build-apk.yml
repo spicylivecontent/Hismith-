@@ -58,7 +58,7 @@ jobs:
           path: out/*.apk
           retention-days: 90
 
-      # Publish versioned release (e.g. v1.1.1) on push or workflow_dispatch to main
+      # Publish versioned release (e.g. v1.2.0) on push or workflow_dispatch to main
       - name: Publish versioned release
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -68,15 +68,12 @@ jobs:
           body: |
             **Hismith Smart Session v${{ steps.version.outputs.version }}** (`${{ github.sha }}`)
 
-            ### Nyheter i v${{ steps.version.outputs.version }}
-            - **Immersive Mode i hela appen:** `setImmersiveMode(true)` körs nu i `onCreate`, `onResume`, kontrollpanelen och webbläsaren – inklusive `FLAG_FULLSCREEN` och `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. Klocka och batteristatus är alltid dolda, även i kontrollpanelen.
-            - **Helskärmsvideo fungerar:** `onShowCustomView` döljer inte längre WebView (`visibility = GONE`) och tvingar inte `requestedOrientation`, och overlay-knapparna anropar inte `bringToFront()` vid `ACTION_DOWN`. Helskärmsknappen på videor i webbläsaren fungerar nu utan att WebView avbryter helskärmsläget.
-            - **Stoppknappar bara vid körning:** `STOPP` (nödstopp) samt overlay-knapparna `⋮⋮ STOPP` och `⋮⋮ SUPER SPRUT` visas endast när en maskin är ansluten och en session faktiskt är igång (`isSessionRunning == true`), och döljs när ingen session körs.
-            - **Städning & robusthet:** BLE-sökningen avbryts korrekt (med `onScanFailed`-rapport), WebView tas ur vyn innan `destroy()`, dialoger visas inte efter att aktiviteten avslutats, adblock returnerar en unik tom respons per blockering och overlay-knapparna layoutas inte om i onödan vid varje statusuppdatering.
+            Ändringarna i den här versionen listas under "What's Changed" nedan och i README.
 
             **Installera:** Ladda ner `HismithSession-release.apk` på telefonen, öppna filen och tillåt installation från okänd källa.
           prerelease: false
           make_latest: true
+          generate_release_notes: true
           files: out/*.apk
 
       # Also keep the rolling "latest" release tag updated
