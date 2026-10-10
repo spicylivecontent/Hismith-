@@ -235,6 +235,9 @@ class SessionService : Service() {
     fun hasAnyMachine(): Boolean =
         devices.values.any { it.connected && it.role != DeviceRole.LUBE_LAUNCHER }
 
+    /** True only while a session is actually running – the UI shows its stop controls then. */
+    fun isSessionRunning(): Boolean = ::engine.isInitialized && engine.isRunning
+
     /** Queue a packet and kick the writer if idle. */
     private fun send(dev: ManagedDevice, data: ByteArray) {
         if (!dev.connected || dev.tx == null || dev.gatt == null) return

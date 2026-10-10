@@ -44,11 +44,12 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Luxury Edition • v1.1.0"
+                        android:text="Luxury Edition • v1.1.1"
                         android:textColor="#8A8270"
                         android:textSize="11sp" />
                 </LinearLayout>
 
+                <!-- Nödstoppsknappen visas först när en maskin är ansluten och en session körs -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnEmergency"
                     android:layout_width="wrap_content"
@@ -56,6 +57,7 @@
                     android:text="STOPP"
                     android:textColor="#FFFFFF"
                     android:textStyle="bold"
+                    android:visibility="gone"
                     app:backgroundTint="#C92A2A"
                     app:cornerRadius="12dp"
                     app:strokeColor="#E5C158"
@@ -533,7 +535,9 @@
         android:background="#000000"
         android:visibility="gone" />
 
-    <!-- Draggable Floating Overlay Buttons (stay on top in browser & fullscreen video) -->
+    <!-- Draggable Floating Overlay Buttons (stay on top in browser & fullscreen video).
+         STOPP / SUPER SPRUT are only shown while a machine is connected and a session is
+         running (see MainActivity.refreshSessionControls). -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnOverlayStop"
         android:layout_width="wrap_content"

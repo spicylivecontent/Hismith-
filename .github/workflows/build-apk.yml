@@ -58,7 +58,7 @@ jobs:
           path: out/*.apk
           retention-days: 90
 
-      # Publish versioned release (e.g. v1.1.0) on push or workflow_dispatch to main
+      # Publish versioned release (e.g. v1.1.1) on push or workflow_dispatch to main
       - name: Publish versioned release
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
@@ -69,10 +69,10 @@ jobs:
             **Hismith Smart Session v${{ steps.version.outputs.version }}** (`${{ github.sha }}`)
 
             ### Nyheter i v${{ steps.version.outputs.version }}
-            - **Luxury Dark/Gold-tema:** Nytt mörkt obsidian- och guldtema med tydliga kort och guldaccenter.
-            - **Flyttbara overlay-knappar:** `STOPP`, `SUPER SPRUT` och `Meny` är nu fritt flyttbara (drag-and-drop) och stannar kvar ovanpå både webbläsaren och helskärmsvideo.
-            - **Immersive Mode:** Döljer Androids systemfält (status- och navigeringsfält) i webbläsar- och videoläge, med möjlighet att fälla in adressfältet för 100 % skärmyta.
-            - **Landscape Video:** Automatisk växling till liggande läge (sensor-landscape) vid helskärmsvideo utan att ladda om sidan.
+            - **Immersive Mode i hela appen:** `setImmersiveMode(true)` körs nu i `onCreate`, `onResume`, kontrollpanelen och webbläsaren – inklusive `FLAG_FULLSCREEN` och `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. Klocka och batteristatus är alltid dolda, även i kontrollpanelen.
+            - **Helskärmsvideo fungerar:** `onShowCustomView` döljer inte längre WebView (`visibility = GONE`) och tvingar inte `requestedOrientation`, och overlay-knapparna anropar inte `bringToFront()` vid `ACTION_DOWN`. Helskärmsknappen på videor i webbläsaren fungerar nu utan att WebView avbryter helskärmsläget.
+            - **Stoppknappar bara vid körning:** `STOPP` (nödstopp) samt overlay-knapparna `⋮⋮ STOPP` och `⋮⋮ SUPER SPRUT` visas endast när en maskin är ansluten och en session faktiskt är igång (`isSessionRunning == true`), och döljs när ingen session körs.
+            - **Städning & robusthet:** BLE-sökningen avbryts korrekt (med `onScanFailed`-rapport), WebView tas ur vyn innan `destroy()`, dialoger visas inte efter att aktiviteten avslutats, adblock returnerar en unik tom respons per blockering och overlay-knapparna layoutas inte om i onödan vid varje statusuppdatering.
 
             **Installera:** Ladda ner `HismithSession-release.apk` på telefonen, öppna filen och tillåt installation från okänd källa.
           prerelease: false
