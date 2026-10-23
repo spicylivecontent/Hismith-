@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pageLube"
+    style="@style/Page"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/PageColumn">
+
+        <!-- Launcher -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="LAUNCHER" />
+
+            <TextView
+                android:id="@+id/lubeStatus"
+                style="@style/Body"
+                android:text="Ingen launcher ansluten"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lubeFirmware"
+                style="@style/Muted"
+                android:fontFamily="monospace"
+                android:textSize="11sp" />
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnConnectMega"
+                    style="@style/Btn.Gold"
+                    android:text="Anslut MegaLube" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnLubeMore"
+                    style="@style/Btn.Dark"
+                    android:text="Annan…" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="8dp"
+                android:text="MegaLube använder klassisk Bluetooth. Parkoppla kortet en gång (namn MegaLube, PIN 2580 om du inte ändrat den) – sedan ansluter appen själv." />
+        </LinearLayout>
+
+        <!-- Dosing -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="DOSERING" />
+
+            <TextView
+                android:id="@+id/doseActive"
+                style="@style/Body"
+                android:text="Ingen dos pågår" />
+
+            <ProgressBar
+                android:id="@+id/doseProgress"
+                style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="6dp"
+                android:max="1000"
+                android:progressDrawable="@drawable/progress_gold" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="10dp">
+
+                <TextView
+                    style="@style/Label"
+                    android:text="Dos" />
+
+                <SeekBar
+                    android:id="@+id/seekDoseMl"
+                    style="@style/Slider"
+                    android:max="29" />
+
+                <TextView
+                    android:id="@+id/valDoseMl"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnDose"
+                    style="@style/Btn.Gold"
+                    android:text="Dosera" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnDoseStop"
+                    style="@style/Btn.Dark"
+                    android:text="Avbryt dos" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnLubeExtra"
+                    style="@style/Btn.Outline"
+                    android:text="EXTRA" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnLubeSuper"
+                    style="@style/Btn.Red"
+                    android:text="SUPER" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/doseTotals"
+                style="@style/Muted"
+                android:paddingTop="10dp" />
+
+            <Button
+                android:id="@+id/btnReservoir"
+                style="@style/Btn.Dark"
+                android:layout_width="match_parent"
+                android:text="Dunken: fyllt på…" />
+        </LinearLayout>
+
+        <!-- Volumes and flow -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="VOLYMER OCH FLÖDE" />
+
+            <LinearLayout style="@style/Row">
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="EXTRA (ml, 1–30)" />
+
+                    <EditText
+                        android:id="@+id/inExtraMl"
+                        style="@style/Input.Decimal" />
+                </LinearLayout>
+
+                <View style="@style/Gap" />
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="SUPER (ml, 1–100)" />
+
+                    <EditText
+                        android:id="@+id/inSuperMl"
+                        style="@style/Input.Decimal" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="8dp">
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Final min (ml)" />
+
+                    <EditText
+                        android:id="@+id/inFinalMin"
+                        style="@style/Input.Decimal" />
+                </LinearLayout>
+
+                <View style="@style/Gap" />
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Final max (ml)" />
+
+                    <EditText
+                        android:id="@+id/inFinalMax"
+                        style="@style/Input.Decimal" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="12dp"
+                android:text="Mikrodos Oral: ml · intervall min–max (s)"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/inMicroOralMl"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inMicroOralMin"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inMicroOralMax"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="10dp"
+                android:text="Mikrodos Anal: ml · intervall min–max (s)"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/inMicroAnalMl"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inMicroAnalMin"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inMicroAnalMax"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="10dp"
+                android:text="Önskat flöde (ml/s): mikro · dos/EXTRA · SUPER/final"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/inFlowMicro"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inFlowNormal"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/inFlowStrong"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="8dp">
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Max pumphastighet (%)" />
+
+                    <EditText
+                        android:id="@+id/inMaxPump"
+                        style="@style/Input.Number" />
+                </LinearLayout>
+
+                <View style="@style/Gap" />
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Max per session (ml)" />
+
+                    <EditText
+                        android:id="@+id/inMaxSession"
+                        style="@style/Input.Decimal" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnSaveLube"
+                style="@style/Btn.Gold"
+                android:layout_width="match_parent"
+                android:layout_marginTop="12dp"
+                android:text="Spara" />
+
+            <TextView
+                android:id="@+id/lubePreview"
+                style="@style/Muted"
+                android:paddingTop="8dp" />
+        </LinearLayout>
+
+        <!-- Calibration -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="KALIBRERING" />
+
+            <TextView
+                android:id="@+id/calStatus"
+                style="@style/Body" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="64dp"
+                    android:text="Hastighet" />
+
+                <SeekBar
+                    android:id="@+id/seekCalSpeed"
+                    style="@style/Slider"
+                    android:max="18" />
+
+                <TextView
+                    android:id="@+id/valCalSpeed"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="64dp"
+                    android:text="Tid" />
+
+                <SeekBar
+                    android:id="@+id/seekCalSeconds"
+                    style="@style/Slider"
+                    android:max="27" />
+
+                <TextView
+                    android:id="@+id/valCalSeconds"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnCalRun"
+                style="@style/Btn.Outline"
+                android:layout_width="match_parent"
+                android:text="Kör kalibrering" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/inCalMeasured"
+                    style="@style/Input.Decimal"
+                    android:layout_width="0dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_weight="1"
+                    android:hint="Uppmätt ml" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnCalSave"
+                    style="@style/Btn.Gold"
+                    android:text="Spara mätning" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnCalReset"
+                style="@style/Btn.Dark"
+                android:layout_width="match_parent"
+                android:text="Återställ kalibrering" />
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="8dp"
+                android:text="Fyll slangen först. Kör, mät i ett måttglas och spara. Mät helst vid 20, 50 och 100 %, först med vatten och sedan med gelen (den flyter långsammare). Håll dunken högre än pumpen och sugslangen kort. Kör aldrig mot en blockerad utgång." />
+        </LinearLayout>
+
+        <!-- Maintenance -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="UNDERHÅLL" />
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnPrime"
+                    style="@style/Btn.Outline"
+                    android:text="Fyll slangen" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnRetract"
+                    style="@style/Btn.Dark"
+                    android:text="Töm slangen ↩" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="8dp"
+                android:text="Töm slangen kör pumpen bakåt (max 60 %) och suger tillbaka gelen till dunken. Aldrig med leksaken på kroppen – bakåt blir det sug. Efter passet: spola med ljummet vatten (högst 40 °C), sedan kokt vatten, och låt torka." />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

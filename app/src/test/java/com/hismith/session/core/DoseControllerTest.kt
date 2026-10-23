@@ -142,4 +142,13 @@ class DoseControllerTest {
         assertTrue(sawPause)
         assertTrue(!c.isBusy)
     }
+
+    @Test
+    fun launcherWithoutSpeedControlIsPlannedAtFullFlow() {
+        val fixed = FakeLubeDriver(supportsSpeed = false)
+        val c = DoseController({ settings }, { FlowModel(listOf(CalPoint(100, 2.0)), true) }).also { it.driver = fixed }
+        val r = c.submit(DoseRequest(DoseKind.MICRO, 1.0, Source.AUTO), 0) as DoseResult.Started
+        assertEquals(100, r.plan.speedPct)
+        assertEquals(575L, r.plan.segmentsMs[0]) // 1 ml / 2 ml/s + 75 ms ramp compensation
+    }
 }

@@ -182,11 +182,15 @@ class DoseController(
     /** Estimated run time for [ml] of [kind] with the current calibration (0 if impossible). */
     fun estimateMs(kind: DoseKind, ml: Double): Long {
         val s = settings().sanitized()
-        return flowModel().plan(s.clampMl(kind, ml), s.flowFor(kind), maxSpeedFor(s))?.totalMs ?: 0L
+        return flowModel().plan(s.clampMl(kind, ml), wantedFlow(s, kind), maxSpeedFor(s))?.totalMs ?: 0L
     }
 
     private fun maxSpeedFor(s: LubeSettings): Int =
         if (driver?.supportsSpeed == false) 100 else s.maxPumpSpeed
+
+    /** A launcher without speed control always runs flat out, so plan at its full flow. */
+    private fun wantedFlow(s: LubeSettings, kind: DoseKind): Double =
+        if (driver?.supportsSpeed == false) Double.MAX_VALUE else s.flowFor(kind)
 
     private fun planFor(req: DoseRequest): DosePlan? {
         if (req.kind == DoseKind.SERVICE) {
@@ -203,7 +207,7 @@ class DoseController(
             return DosePlan(speed, flow, flow * req.serviceMs / 1000.0, segs)
         }
         val s = settings().sanitized()
-        return flowModel().plan(s.clampMl(req.kind, req.ml), s.flowFor(req.kind), maxSpeedFor(s))
+        return flowModel().plan(s.clampMl(req.kind, req.ml), wantedFlow(s, req.kind), maxSpeedFor(s))
     }
 
     fun submit(req: DoseRequest, now: Long): DoseResult {

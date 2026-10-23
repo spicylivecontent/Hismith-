@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pageSession"
+    style="@style/Page">
+
+    <LinearLayout style="@style/PageColumn">
+
+        <!-- Live -->
+        <LinearLayout style="@style/Card">
+
+            <LinearLayout style="@style/Row">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/sessTime"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-light"
+                        android:text="00:00"
+                        android:textColor="@color/gold_pale"
+                        android:textSize="40sp" />
+
+                    <TextView
+                        android:id="@+id/sessRemaining"
+                        style="@style/Label"
+                        android:text="Ingen session" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/sessSpeed"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 %"
+                        android:textColor="@color/gold"
+                        android:textSize="34sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="hastighet" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/sessPhase"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:letterSpacing="0.05"
+                android:text="Redo"
+                android:textColor="@color/text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <com.hismith.session.ui.SpeedGraphView
+                android:id="@+id/speedGraph"
+                android:layout_width="match_parent"
+                android:layout_height="72dp"
+                android:layout_marginTop="8dp" />
+
+            <ProgressBar
+                android:id="@+id/sessProgress"
+                style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
+                android:max="1000"
+                android:progressDrawable="@drawable/progress_gold" />
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnPause"
+                    style="@style/Btn.Dark"
+                    android:text="Pausa" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnFinalNow"
+                    style="@style/Btn.Outline"
+                    android:text="Final nu" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnEnd"
+                    style="@style/Btn.Dark"
+                    android:text="Avsluta" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnExtra"
+                    style="@style/Btn.Outline"
+                    android:text="EXTRA SPRUT" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnSuper"
+                    style="@style/Btn.Red"
+                    android:text="SUPER SPRUT" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Devices -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="ENHETER" />
+
+            <LinearLayout
+                android:id="@+id/devicesList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/devicesEmpty"
+                style="@style/Muted"
+                android:paddingBottom="4dp"
+                android:text="Inga enheter. Anslut en Hismith-maskin, eller prova med en simulator." />
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnAddMachine"
+                    style="@style/Btn.Outline"
+                    android:text="+ Maskin / Pocket" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnAddSim"
+                    style="@style/Btn.Dark"
+                    android:text="+ Simulator" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Mode -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="LÄGE" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    android:id="@+id/modeOral"
+                    style="@style/Segment"
+                    android:text="Oral" />
+
+                <View style="@style/Gap" />
+
+                <TextView
+                    android:id="@+id/modeAnal"
+                    style="@style/Segment"
+                    android:text="Anal" />
+
+                <View style="@style/Gap" />
+
+                <TextView
+                    android:id="@+id/modePocket"
+                    style="@style/Segment"
+                    android:text="Pocket" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/modeHint"
+                style="@style/Muted"
+                android:paddingTop="8dp" />
+        </LinearLayout>
+
+        <!-- Session settings -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="AUTOMATISK SESSION" />
+
+            <LinearLayout style="@style/Row">
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Minsta tid (min)" />
+
+                    <EditText
+                        android:id="@+id/inMinTime"
+                        style="@style/Input.Number" />
+                </LinearLayout>
+
+                <View style="@style/Gap" />
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Max tid (0 = obegränsat)" />
+
+                    <EditText
+                        android:id="@+id/inMaxTime"
+                        style="@style/Input.Number" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="10dp">
+
+                <TextView
+                    style="@style/Label"
+                    android:text="Intensitet" />
+
+                <SeekBar
+                    android:id="@+id/seekIntensity"
+                    style="@style/Slider"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/valIntensity"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/swAutoLube"
+                style="@style/Toggle"
+                android:text="Mikrodoser under passet (auto-lube)" />
+
+            <Switch
+                android:id="@+id/swFinal"
+                style="@style/Toggle"
+                android:text="Final med sprut" />
+
+            <Switch
+                android:id="@+id/swSmartStroke"
+                style="@style/Toggle"
+                android:text="Smart slaglängd (elektronisk)" />
+
+            <Switch
+                android:id="@+id/swNonstop"
+                style="@style/Toggle"
+                android:text="Nonstop – inga vilopauser" />
+
+            <Button
+                android:id="@+id/btnStart"
+                style="@style/Btn.Gold"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="10dp"
+                android:text="STARTA SESSION"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/startHint"
+                style="@style/Muted"
+                android:gravity="center"
+                android:paddingTop="6dp" />
+        </LinearLayout>
+
+        <!-- Manual -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="MANUELL STYRNING" />
+
+            <Button
+                android:id="@+id/btnManual"
+                style="@style/Btn.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="0dp"
+                android:text="Starta manuell styrning" />
+
+            <LinearLayout
+                android:id="@+id/manualControls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    style="@style/Row"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Hastighet" />
+
+                    <SeekBar
+                        android:id="@+id/seekManual"
+                        style="@style/Slider"
+                        android:max="100" />
+
+                    <TextView
+                        android:id="@+id/valManual"
+                        style="@style/Value" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Row">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Slag start" />
+
+                    <SeekBar
+                        android:id="@+id/seekStrokeStart"
+                        style="@style/Slider"
+                        android:max="85" />
+
+                    <TextView
+                        android:id="@+id/valStrokeStart"
+                        style="@style/Value" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Row">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Slag slut" />
+
+                    <SeekBar
+                        android:id="@+id/seekStrokeStop"
+                        style="@style/Slider"
+                        android:max="100" />
+
+                    <TextView
+                        android:id="@+id/valStrokeStop"
+                        style="@style/Value" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/Muted"
+                    android:text="Ändringar glider mjukt (max 60 % per sekund). Slaglängd fungerar bara på maskiner med elektronisk slaglängd." />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Limits -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="MAXHASTIGHET PER LÄGE" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="56dp"
+                    android:text="Oral" />
+
+                <SeekBar
+                    android:id="@+id/seekMaxOral"
+                    style="@style/Slider"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/valMaxOral"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="56dp"
+                    android:text="Anal" />
+
+                <SeekBar
+                    android:id="@+id/seekMaxAnal"
+                    style="@style/Slider"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/valMaxAnal"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="56dp"
+                    android:text="Pocket" />
+
+                <SeekBar
+                    android:id="@+id/seekMaxPocket"
+                    style="@style/Slider"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/valMaxPocket"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Muted"
+                android:text="Automatiken skalas in under taket (variationen behålls). Manuell styrning och länken kan aldrig gå över det." />
+
+            <Switch
+                android:id="@+id/swAutoReconnect"
+                style="@style/Toggle"
+                android:layout_marginTop="6dp"
+                android:text="Återanslut sparade enheter vid start" />
+        </LinearLayout>
+
+        <!-- Events -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="HÄNDELSER" />
+
+            <TextView
+                android:id="@+id/eventsText"
+                style="@style/Muted"
+                android:fontFamily="monospace"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

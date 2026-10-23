@@ -2,43 +2,64 @@ package com.hismith.session
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
-import android.content.*
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.net.Uri
-import android.os.*
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
-import android.webkit.*
-import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.widget.Button
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import com.hismith.session.core.CommandArbiter
+import com.hismith.session.core.DoseKind
+import com.hismith.session.core.Source
+import com.hismith.session.remote.RemoteHost
+import com.hismith.session.ui.ChallengeTab
+import com.hismith.session.ui.DevicePicker
+import com.hismith.session.ui.LubeTab
+import com.hismith.session.ui.RecipeTab
+import com.hismith.session.ui.RemoteTab
+import com.hismith.session.ui.SessionTab
+import com.hismith.session.ui.Ui
 import kotlin.math.hypot
 
 @SuppressLint("MissingPermission")
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
 
     companion object {
         private const val REQ_PERMS = 1001
         private const val HOME_URL = "https://www.pornhub.com"
-        private const val SCAN_TIMEOUT_MS = 5500L
+        const val EXTRA_TAB = "tab"
+        const val TAB_SESSION = 0
+        const val TAB_LUBE = 1
+        const val TAB_CHALLENGE = 2
+        const val TAB_REMOTE = 3
+        const val TAB_RECIPE = 4
 
         /** A tap counts as a user gesture for this long (used by the popup/redirect guard). */
         private const val USER_TOUCH_WINDOW_MS = 1500L
@@ -51,88 +72,68 @@ class MainActivity : AppCompatActivity() {
             "xHamster" to "https://xhamster.com",
             "RedTube" to "https://www.redtube.com",
             "YouPorn" to "https://www.youporn.com",
-            "SpankBang" to "https://spankbang.com"
+            "SpankBang" to "https://spankbang.com",
         )
     }
 
-    /** Timestamp of the last finger-down/up inside the WebView (see [AdBlockWebViewClient]). */
-    private var lastUserTouchMs = 0L
-    private var lastBlockToastMs = 0L
+    lateinit var settings: AppSettings
+        private set
+    var service: SessionService? = null
+        private set
+    var state: UiState? = null
+        private set
+    lateinit var devicePicker: DevicePicker
+        private set
 
-    private var serviceStarted = false
-    private var pendingScanRole: DeviceRole? = null
-
-    private var service: SessionService? = null
     private var bound = false
-    private var isImmersiveActive = false
-    private var isTopBarHiddenInBrowser = false
+    private var serviceStarted = false
+    private var currentTab = TAB_SESSION
+    private var resumed = false
 
-    /**
-     * Live state mirrored from [SessionService]. The stop controls (emergency button +
-     * floating overlay buttons) are only shown while a machine is connected AND a session
-     * is actually running – a red STOPP button when nothing runs is just confusing.
-     */
-    private var isSessionRunning = false
-    private var hasMachineConnected = false
-
-    /** Whether the current mode (browser / fullscreen video) wants the floating buttons. */
-    private var overlayButtonsRequested = false
-    private var overlayMenuToggleRequested = false
+    private lateinit var sessionTab: SessionTab
+    private lateinit var lubeTab: LubeTab
+    private lateinit var challengeTab: ChallengeTab
+    private lateinit var remoteTab: RemoteTab
+    private lateinit var recipeTab: RecipeTab
 
     private lateinit var rootContainer: FrameLayout
-    private lateinit var controlPanel: View
-    private lateinit var browserPanel: View
-    private lateinit var webView: WebView
-    private lateinit var browserTopBar: View
-    private lateinit var fullscreenContainer: FrameLayout
+    private lateinit var mainColumn: View
+    private lateinit var pages: List<View>
+    private lateinit var tabs: List<TextView>
+    private lateinit var headerStatus: TextView
+    private lateinit var btnEmergency: Button
+    private lateinit var stoppedBanner: TextView
 
-    private lateinit var btnAddDevice: MaterialButton
-    private lateinit var btnStart: MaterialButton
-    private lateinit var btnEndSession: MaterialButton
-    private lateinit var btnSpray: MaterialButton
-    private lateinit var btnMegaInControl: MaterialButton
-    private lateinit var btnEmergency: MaterialButton
-    private lateinit var btnModeBrowser: MaterialButton
-    private lateinit var btnModeControlFromBrowser: MaterialButton
-    private lateinit var quickLinksRow: LinearLayout
-    private lateinit var btnBrowserBack: MaterialButton
-    private lateinit var btnBrowserForward: MaterialButton
-    private lateinit var btnBrowserHome: MaterialButton
-    private lateinit var btnBrowserRefresh: MaterialButton
-    private lateinit var btnGoUrl: MaterialButton
-    private lateinit var btnHideTopBar: MaterialButton
-    private lateinit var btnOverlayStop: MaterialButton
-    private lateinit var btnOverlayMega: MaterialButton
-    private lateinit var btnOverlayBarToggle: MaterialButton
-    private lateinit var statusText: TextView
-    private lateinit var devicesText: TextView
-    private lateinit var phaseText: TextView
-    private lateinit var speedText: TextView
-    private lateinit var timeText: TextView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var minTimeInput: EditText
-    private lateinit var maxTimeInput: EditText
-    private lateinit var autoLubeCheck: CheckBox
-    private lateinit var smartStrokeCheck: CheckBox
+    private lateinit var browserPanel: View
+    private lateinit var browserTopBar: View
+    private lateinit var webView: WebView
     private lateinit var urlBar: EditText
+    private lateinit var browserSpeed: TextView
+    private lateinit var fullscreenContainer: FrameLayout
+    private lateinit var btnOverlayStop: Button
+    private lateinit var btnOverlayMega: Button
+    private lateinit var btnOverlayBarToggle: Button
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
-    private val prefs by lazy { getSharedPreferences("hismith_prefs", MODE_PRIVATE) }
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private var scanTimeoutRunnable: Runnable? = null
-    private var scanCallback: ScanCallback? = null
-    /** Written by the BLE scan callback (binder thread), read on the UI thread – must be synchronised. */
-    private val found: MutableMap<String, BluetoothDevice> =
-        java.util.Collections.synchronizedMap(linkedMapOf<String, BluetoothDevice>())
+    private var isTopBarHiddenInBrowser = false
+    private var overlayButtonsRequested = false
+    private var overlayMenuToggleRequested = false
+    private var lastUserTouchMs = 0L
+    private var lastBlockToastMs = 0L
+    private var approvalDialog: AlertDialog? = null
+
+    private val stateListener: (UiState) -> Unit = { st -> onState(st) }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            service = (binder as SessionService.LocalBinder).getService()
+            val s = (binder as SessionService.LocalBinder).service()
+            service = s
             bound = true
-            service?.startForegroundProtected()
-            syncStateFromService()
-            refreshSessionControls()
+            s.startForegroundProtected()
+            s.settingsChanged()
+            if (hasBtPermissions()) s.reconnectSaved()
+            s.addListener(stateListener)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -141,59 +142,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val statusReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != SessionService.BROADCAST_STATUS) return
-            val running = intent.getBooleanExtra(SessionService.EXTRA_RUNNING, false)
-            val speed = intent.getIntExtra(SessionService.EXTRA_SPEED, -1)
-            val phase = intent.getStringExtra(SessionService.EXTRA_PHASE)
-            val elapsed = intent.getLongExtra(SessionService.EXTRA_ELAPSED, -1)
-            val progress = intent.getFloatExtra(SessionService.EXTRA_PROGRESS, -1f)
-            val summary = intent.getStringExtra(SessionService.EXTRA_DEVICE_SUMMARY) ?: ""
-
-            runOnUiThread {
-                hasMachineConnected = summary.split(";").any { entry ->
-                    val p = entry.split(":")
-                    p.size >= 2 && p[0] != DeviceRole.LUBE_LAUNCHER.name && p[1] == "1"
-                }
-                isSessionRunning = running
-
-                btnStart.isEnabled = hasMachineConnected && !running
-                btnStart.alpha = if (btnStart.isEnabled) 1f else 0.45f
-                if (speed >= 0) speedText.text = "$speed %"
-                phase?.let { phaseText.text = it }
-                if (elapsed >= 0) timeText.text = "%02d:%02d".format(elapsed / 60, elapsed % 60)
-                if (progress >= 0f) progressBar.progress = (progress * 100).toInt()
-
-                val lines = summary.split(";").filter { it.isNotBlank() }.mapNotNull { entry ->
-                    val p = entry.split(":")
-                    if (p.size >= 3) {
-                        val role = try { DeviceRole.valueOf(p[0]).label } catch (_: Exception) { p[0] }
-                        val ok = if (p[1] == "1") "✓" else "…"
-                        "$ok $role (${p[2]})"
-                    } else null
-                }
-                devicesText.text =
-                    if (lines.isEmpty()) "Inga enheter anslutna (tryck för att koppla från)"
-                    else lines.joinToString("\n")
-
-                refreshSessionControls()
-            }
-        }
-    }
-
     /**
-     * Chrome client kept as a field so the app can leave fullscreen video itself
-     * (overlay "Meny" button / back press) without casting around.
+     * Chrome client kept as a field so the app can leave fullscreen video itself.
      *
-     * IMPORTANT: `onShowCustomView` must NOT hide the WebView and must NOT force a screen
-     * orientation. Both actions make Chromium tear down / relayout the compositor surface,
-     * which cancels the `<video>` fullscreen request – the fullscreen button then appears
-     * to "bounce back" and nothing happens. The fullscreen container is declared after the
-     * browser panel in the layout, so it already covers the WebView on its own.
+     * `onShowCustomView` must NOT hide the WebView and must NOT force an orientation: both make
+     * Chromium tear down the compositor surface, which cancels the `<video>` fullscreen request.
      */
     private val chromeClient = object : WebChromeClient() {
-
         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
             if (customView != null) {
                 callback?.onCustomViewHidden()
@@ -201,24 +156,16 @@ class MainActivity : AppCompatActivity() {
             }
             customView = view
             customViewCallback = callback
-
             browserTopBar.visibility = View.GONE
             fullscreenContainer.visibility = View.VISIBLE
             view?.let {
-                fullscreenContainer.addView(
-                    it,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                )
+                fullscreenContainer.addView(it, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             }
-
-            setImmersiveMode(true)
+            setImmersiveMode()
             overlayButtonsRequested = true
             overlayMenuToggleRequested = false
-            refreshSessionControls()
-            rootContainer.post { clampAllOverlaysToBounds() }
+            refreshOverlays()
+            rootContainer.post { restoreOverlayPositions() }
         }
 
         override fun onHideCustomView() {
@@ -227,7 +174,6 @@ class MainActivity : AppCompatActivity() {
             customViewCallback?.onCustomViewHidden()
             customViewCallback = null
             fullscreenContainer.visibility = View.GONE
-
             if (browserPanel.visibility == View.VISIBLE) {
                 browserTopBar.visibility = if (isTopBarHiddenInBrowser) View.GONE else View.VISIBLE
                 overlayButtonsRequested = true
@@ -236,691 +182,70 @@ class MainActivity : AppCompatActivity() {
                 overlayButtonsRequested = false
                 overlayMenuToggleRequested = false
             }
-
-            setImmersiveMode(true)
-            refreshSessionControls()
-            rootContainer.post { clampAllOverlaysToBounds() }
+            setImmersiveMode()
+            refreshOverlays()
+            rootContainer.post { restoreOverlayPositions() }
         }
     }
 
+    // ================================================================== lifecycle
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        settings = AppSettings(this)
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Immersive everywhere – also in the control panel (clock/battery always hidden).
-        setImmersiveMode(true)
+        setImmersiveMode()
 
         bindViews()
-        refreshSessionControls()
+        devicePicker = DevicePicker(this)
+        sessionTab = SessionTab(this)
+        lubeTab = LubeTab(this)
+        challengeTab = ChallengeTab(this)
+        remoteTab = RemoteTab(this)
+        recipeTab = RecipeTab(this)
+        setupTabs()
+        setupHeader()
         setupWebView()
         setupQuickLinks()
-        setupClicks()
+        setupBrowserClicks()
         setupDraggableOverlays()
-        loadSettings()
+        applyCutoutInsets()
 
-        val filter = IntentFilter(SessionService.BROADCAST_STATUS)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(statusReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(statusReceiver, filter)
-        }
+        showTab(intent?.getIntExtra(EXTRA_TAB, TAB_SESSION) ?: TAB_SESSION)
         showControlMode()
 
-        if (hasBtPermissions()) {
-            ensureServiceStarted()
-            askIgnoreBatteryOptimizations()
-        } else {
-            statusText.text = "Ge appen Bluetooth-behörighet för att börja"
-            requestPermissions()
+        ensureServiceStarted()
+        if (hasBtPermissions()) askIgnoreBatteryOptimizations() else requestBtPermissions()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.hasExtra(EXTRA_TAB)) {
+            showControlMode()
+            showTab(intent.getIntExtra(EXTRA_TAB, TAB_SESSION))
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // The system UI can reappear while we were in the background (another activity,
-        // the permission dialogs, a phone call) – hide it again on every resume.
-        setImmersiveMode(true)
-        syncStateFromService()
-        refreshSessionControls()
-    }
-
-    /**
-     * Start + bind the foreground service. Only called once Bluetooth permissions are
-     * granted – on Android 14+ a connectedDevice foreground service is not allowed to
-     * start before BLUETOOTH_CONNECT has been granted.
-     */
-    private fun ensureServiceStarted() {
-        if (serviceStarted) return
-        serviceStarted = true
-        val svc = Intent(this, SessionService::class.java)
-        ContextCompat.startForegroundService(this, svc)
-        bindService(svc, connection, Context.BIND_AUTO_CREATE)
-        statusText.text = "Redo – lägg till en enhet"
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQ_PERMS) return
-        if (hasBtPermissions()) {
-            ensureServiceStarted()
-            service?.startForegroundProtected()
-            askIgnoreBatteryOptimizations()
-            pendingScanRole?.let { role -> pendingScanRole = null; startScanForRole(role) }
-        } else {
-            statusText.text = "Bluetooth-behörighet nekad – appen kan inte styra maskiner"
-        }
-    }
-
-    private fun bindViews() {
-        rootContainer = findViewById(R.id.rootContainer)
-        controlPanel = findViewById(R.id.controlPanel)
-        browserPanel = findViewById(R.id.browserPanel)
-        webView = findViewById(R.id.webView)
-        browserTopBar = findViewById(R.id.browserTopBar)
-        fullscreenContainer = findViewById(R.id.fullscreenContainer)
-        btnAddDevice = findViewById(R.id.btnAddDevice)
-        btnStart = findViewById(R.id.btnStart)
-        btnEndSession = findViewById(R.id.btnEndSession)
-        btnSpray = findViewById(R.id.btnSpray)
-        btnMegaInControl = findViewById(R.id.btnMegaInControl)
-        btnEmergency = findViewById(R.id.btnEmergency)
-        btnModeBrowser = findViewById(R.id.btnModeBrowser)
-        btnModeControlFromBrowser = findViewById(R.id.btnModeControlFromBrowser)
-        quickLinksRow = findViewById(R.id.quickLinksRow)
-        btnBrowserBack = findViewById(R.id.btnBrowserBack)
-        btnBrowserForward = findViewById(R.id.btnBrowserForward)
-        btnBrowserHome = findViewById(R.id.btnBrowserHome)
-        btnBrowserRefresh = findViewById(R.id.btnBrowserRefresh)
-        btnGoUrl = findViewById(R.id.btnGoUrl)
-        btnHideTopBar = findViewById(R.id.btnHideTopBar)
-        statusText = findViewById(R.id.statusText)
-        devicesText = findViewById(R.id.devicesText)
-        phaseText = findViewById(R.id.phaseText)
-        speedText = findViewById(R.id.speedText)
-        timeText = findViewById(R.id.timeText)
-        progressBar = findViewById(R.id.progressBar)
-        minTimeInput = findViewById(R.id.minTimeInput)
-        maxTimeInput = findViewById(R.id.maxTimeInput)
-        autoLubeCheck = findViewById(R.id.autoLubeCheck)
-        smartStrokeCheck = findViewById(R.id.smartStrokeCheck)
-        urlBar = findViewById(R.id.urlBar)
-        btnOverlayStop = findViewById(R.id.btnOverlayStop)
-        btnOverlayMega = findViewById(R.id.btnOverlayMega)
-        btnOverlayBarToggle = findViewById(R.id.btnOverlayBarToggle)
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun setupWebView() {
-        // Debug builds only: lets you inspect the browser via chrome://inspect on a PC when
-        // checking which elements on a site are ads. Release builds are never debuggable.
-        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            databaseEnabled = true
-            mediaPlaybackRequiresUserGesture = false
-            // Plain http inside https pages is a classic injection path for ad / redirect scripts.
-            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            allowFileAccess = false
-            allowContentAccess = false
-            setGeolocationEnabled(false)
-            // No popup windows: window.open() is refused, so popunders cannot open new tabs.
-            setSupportMultipleWindows(false)
-            javaScriptCanOpenWindowsAutomatically = false
-            loadWithOverviewMode = true
-            useWideViewPort = true
-            builtInZoomControls = true
-            displayZoomControls = false
-            userAgentString = userAgentString.replace("; wv", "").replace("Version/4.0", "")
-        }
-        // Third-party cookies (ad networks / trackers) are off; the site's own cookies still work.
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
-
-        // Record real finger events so the navigation guard can tell a click from a script redirect.
-        // Returning false keeps normal WebView handling (scrolling, video controls, links).
-        webView.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_UP) {
-                lastUserTouchMs = SystemClock.uptimeMillis()
-            }
-            false
-        }
-
-        // Nothing is downloaded or installed from the browser. "Uppdatera spelaren" / APK-bluffar
-        // are delivered as downloads, so refuse them instead of letting WebView save them.
-        webView.setDownloadListener { _, _, _, mimeType, _ ->
-            showBlockedToast("Nedladdning blockerad ($mimeType)")
-        }
-
-        webView.webViewClient = AdBlockWebViewClient(
-            onPageStarted = { url -> runOnUiThread { urlBar.setText(url ?: "") } },
-            onBlocked = { reason -> runOnUiThread { showBlockedToast("Blockerade: $reason") } },
-            hasRecentUserTouch = { SystemClock.uptimeMillis() - lastUserTouchMs < USER_TOUCH_WINDOW_MS }
-        )
-        webView.webChromeClient = chromeClient
-        webView.loadUrl(prefs.getString("last_url", HOME_URL) ?: HOME_URL)
-    }
-
-    /** One button per site in [QUICK_LINKS], shown in the browser toolbar. */
-    private fun setupQuickLinks() {
-        QUICK_LINKS.forEach { (label, url) ->
-            val button = MaterialButton(
-                this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle
-            ).apply {
-                text = label
-                isAllCaps = false
-                textSize = 12f
-                setTextColor(0xFFE5C158.toInt())
-                backgroundTintList = ColorStateList.valueOf(0x00000000)
-                strokeColor = ColorStateList.valueOf(0xFF6E5A28.toInt())
-                strokeWidth = dp(1)
-                cornerRadius = dp(14)
-                minWidth = 0
-                minimumWidth = 0
-                minHeight = 0
-                minimumHeight = 0
-                insetTop = 0
-                insetBottom = 0
-                setPadding(dp(12), 0, dp(12), 0)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(30)
-                ).apply { marginEnd = dp(6) }
-                setOnClickListener { loadUrlFromUser(url) }
-            }
-            quickLinksRow.addView(button)
-        }
-    }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    /** Shows a message, but at most once every few seconds – popunder attempts come in bursts. */
-    private fun showBlockedToast(message: String) {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastBlockToastMs < 4000) return
-        lastBlockToastMs = now
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun setupClicks() {
-        btnAddDevice.setOnClickListener { showRoleThenScan() }
-        devicesText.setOnClickListener { showRemoveDeviceDialog() }
-
-        btnStart.setOnClickListener {
-            saveSettings()
-            if (service == null) {
-                Toast.makeText(this, "Tjänsten är inte igång ännu", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            startService(Intent(this, SessionService::class.java).apply {
-                action = SessionService.ACTION_START_SESSION
-                putExtra("min", minTimeInput.text.toString().toIntOrNull() ?: 20)
-                putExtra("max", maxTimeInput.text.toString().toIntOrNull() ?: 45)
-                putExtra("autoLube", autoLubeCheck.isChecked)
-                putExtra("smartStroke", smartStrokeCheck.isChecked)
-            })
-            statusText.text = "Session startad"
-        }
-
-        btnEndSession.setOnClickListener {
-            startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_END_SESSION))
-        }
-        btnSpray.setOnClickListener {
-            startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_SHORT_SPRAY))
-        }
-        btnMegaInControl.setOnClickListener {
-            startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_MEGA_SPRAY))
-        }
-        btnEmergency.setOnClickListener { emergencyStop() }
-        btnOverlayStop.setOnClickListener { emergencyStop() }
-        btnOverlayMega.setOnClickListener {
-            startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_MEGA_SPRAY))
-            Toast.makeText(this, "SUPER SPRUT", Toast.LENGTH_SHORT).show()
-        }
-        btnHideTopBar.setOnClickListener {
-            isTopBarHiddenInBrowser = true
-            browserTopBar.visibility = View.GONE
-            overlayButtonsRequested = true
-            overlayMenuToggleRequested = true
-            refreshSessionControls()
-            setImmersiveMode(true)
-        }
-        btnOverlayBarToggle.setOnClickListener {
-            if (customView != null) {
-                chromeClient.onHideCustomView()
-            } else {
-                isTopBarHiddenInBrowser = false
-                browserTopBar.visibility = View.VISIBLE
-                overlayMenuToggleRequested = false
-                refreshSessionControls()
-            }
-        }
-
-        btnModeBrowser.setOnClickListener { showBrowserMode() }
-        btnModeControlFromBrowser.setOnClickListener { showControlMode() }
-        btnBrowserBack.setOnClickListener { if (webView.canGoBack()) webView.goBack() }
-        btnBrowserForward.setOnClickListener { if (webView.canGoForward()) webView.goForward() }
-        btnBrowserHome.setOnClickListener { webView.loadUrl(HOME_URL) }
-        btnBrowserRefresh.setOnClickListener { webView.reload() }
-        btnGoUrl.setOnClickListener { navigateUrlBar() }
-        urlBar.setOnEditorActionListener { _, _, _ -> navigateUrlBar(); true }
-    }
-
-    /** Hard stop: kills the session and every connected machine immediately. */
-    private fun emergencyStop() {
-        startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_STOP))
-        Toast.makeText(this, "NÖDSTOPP", Toast.LENGTH_SHORT).show()
-    }
-
-    /**
-     * Makes floating overlay buttons freely draggable across the screen while preserving click events.
-     *
-     * No `bringToFront()` on ACTION_DOWN: re-parenting/reordering the view mid-gesture makes
-     * Chromium drop the touch stream, which in fullscreen video ends the fullscreen session.
-     * The buttons are already raised (elevation + [refreshSessionControls]) above the video.
-     */
-    private fun setupDraggableOverlays() {
-        makeDraggable(btnOverlayStop, "overlay_stop")
-        makeDraggable(btnOverlayMega, "overlay_mega")
-        makeDraggable(btnOverlayBarToggle, "overlay_menu")
-        rootContainer.post { restoreOverlayPositions() }
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun makeDraggable(view: View, prefKeyPrefix: String) {
-        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-        var downRawX = 0f
-        var downRawY = 0f
-        var startX = 0f
-        var startY = 0f
-        var isDragging = false
-
-        view.setOnTouchListener { v, event ->
-            val parent = v.parent as? View ?: return@setOnTouchListener false
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downRawX = event.rawX
-                    downRawY = event.rawY
-                    startX = v.x
-                    startY = v.y
-                    isDragging = false
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - downRawX
-                    val dy = event.rawY - downRawY
-                    if (!isDragging && hypot(dx.toDouble(), dy.toDouble()) > touchSlop) {
-                        isDragging = true
-                    }
-                    if (isDragging) {
-                        val maxX = (parent.width - v.width).coerceAtLeast(0).toFloat()
-                        val maxY = (parent.height - v.height).coerceAtLeast(0).toFloat()
-                        v.x = (startX + dx).coerceIn(0f, maxX)
-                        v.y = (startY + dy).coerceIn(0f, maxY)
-                    }
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (!isDragging) {
-                        v.performClick()
-                    } else {
-                        val maxX = (parent.width - v.width).coerceAtLeast(1).toFloat()
-                        val maxY = (parent.height - v.height).coerceAtLeast(1).toFloat()
-                        prefs.edit()
-                            .putFloat("${prefKeyPrefix}_rx", (v.x / maxX).coerceIn(0f, 1f))
-                            .putFloat("${prefKeyPrefix}_ry", (v.y / maxY).coerceIn(0f, 1f))
-                            .apply()
-                    }
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    isDragging = false
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun restoreOverlayPositions() {
-        applySavedPositionOrClamp(btnOverlayStop, "overlay_stop")
-        applySavedPositionOrClamp(btnOverlayMega, "overlay_mega")
-        applySavedPositionOrClamp(btnOverlayBarToggle, "overlay_menu")
-    }
-
-    private fun applySavedPositionOrClamp(view: View, prefKeyPrefix: String) {
-        val parent = rootContainer
-        if (parent.width <= 0 || parent.height <= 0 || view.width <= 0 || view.height <= 0) return
-        val maxX = (parent.width - view.width).coerceAtLeast(0).toFloat()
-        val maxY = (parent.height - view.height).coerceAtLeast(0).toFloat()
-        if (prefs.contains("${prefKeyPrefix}_rx") && prefs.contains("${prefKeyPrefix}_ry")) {
-            val rx = prefs.getFloat("${prefKeyPrefix}_rx", 0f).coerceIn(0f, 1f)
-            val ry = prefs.getFloat("${prefKeyPrefix}_ry", 1f).coerceIn(0f, 1f)
-            view.x = rx * maxX
-            view.y = ry * maxY
-        } else {
-            view.x = view.x.coerceIn(0f, maxX)
-            view.y = view.y.coerceIn(0f, maxY)
-        }
-    }
-
-    private fun clampAllOverlaysToBounds() {
-        restoreOverlayPositions()
-    }
-
-    /**
-     * Single source of truth for the stop controls.
-     *
-     * [btnEmergency], [btnOverlayStop] and [btnOverlayMega] are visible only when a machine
-     * is connected and a session is actually running ([isSessionRunning]). The "Meny" toggle
-     * is not session dependent – it is the only way back to the address bar once it is hidden.
-     */
-    private fun refreshSessionControls() {
-        if (!::rootContainer.isInitialized) return
-        val sessionActive = hasMachineConnected && isSessionRunning
-
-        val emergencyVisibility = if (sessionActive) View.VISIBLE else View.GONE
-        val overlaysVisible = sessionActive && overlayButtonsRequested
-        val overlayVisibility = if (overlaysVisible) View.VISIBLE else View.GONE
-        val menuVisible = overlayButtonsRequested && overlayMenuToggleRequested
-        val menuVisibility = if (menuVisible) View.VISIBLE else View.GONE
-
-        // Status broadcasts arrive ~12 times per second while a session runs: bail out when
-        // nothing actually changed so we don't re-layout / re-order the views every tick.
-        if (btnEmergency.visibility == emergencyVisibility &&
-            btnOverlayStop.visibility == overlayVisibility &&
-            btnOverlayMega.visibility == overlayVisibility &&
-            btnOverlayBarToggle.visibility == menuVisibility
-        ) return
-
-        btnEmergency.visibility = emergencyVisibility
-        btnOverlayStop.visibility = overlayVisibility
-        btnOverlayMega.visibility = overlayVisibility
-        btnOverlayBarToggle.visibility = menuVisibility
-
-        if (overlaysVisible) {
-            btnOverlayStop.bringToFront()
-            btnOverlayMega.bringToFront()
-        }
-        if (menuVisible) btnOverlayBarToggle.bringToFront()
-
-        rootContainer.post { restoreOverlayPositions() }
-    }
-
-    /** Pull the authoritative state from the service (after binding / on resume). */
-    private fun syncStateFromService() {
-        service?.let {
-            isSessionRunning = it.isSessionRunning()
-            hasMachineConnected = it.hasAnyMachine()
-        }
-    }
-
-    /**
-     * Hides the Android system UI for the WHOLE app – status bar (clock + battery) as well as
-     * the navigation bar – in the control panel, the browser and fullscreen video alike.
-     *
-     * Both mechanisms are applied on purpose: the modern [WindowInsetsControllerCompat] plus
-     * the legacy `FLAG_FULLSCREEN` window flag and `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`.
-     * WebView / custom-view transitions occasionally reset the compat controller, and the
-     * window flags keep the status bar hidden regardless (and let content use the notch area).
-     */
-    @Suppress("DEPRECATION")
-    private fun setImmersiveMode(enabled: Boolean) {
-        isImmersiveActive = enabled
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes = window.attributes.apply {
-                layoutInDisplayCutoutMode = if (enabled) {
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                } else {
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-                }
-            }
-        }
-
-        if (enabled) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        }
-
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        if (enabled) {
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && isImmersiveActive) {
-            setImmersiveMode(true)
-        }
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        setImmersiveMode(true)
-        rootContainer.postDelayed({ clampAllOverlaysToBounds() }, 100)
-    }
-
-    private fun showRemoveDeviceDialog() {
-        val list = service?.getDevices().orEmpty()
-        if (list.isEmpty()) return
-        val labels = list.map { "${it.role.label}\n${it.name} (${it.address})" }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Ta bort enhet?")
-            .setItems(labels) { _, which -> service?.removeDevice(list[which].address) }
-            .setNegativeButton("Avbryt", null)
-            .show()
-    }
-
-    /** Step 1: choose role, Step 2: scan & pick device */
-    private fun showRoleThenScan() {
-        val roles = DeviceRole.allSelectable()
-        val labels = roles.map { it.label }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Vilken typ av enhet?")
-            .setItems(labels) { _, which ->
-                startScanForRole(roles[which])
-            }
-            .setNegativeButton("Avbryt", null)
-            .show()
-    }
-
-    private fun startScanForRole(role: DeviceRole) {
-        if (!hasBtPermissions()) { pendingScanRole = role; requestPermissions(); return }
-        if (service == null) { ensureServiceStarted(); statusText.text = "Startar tjänsten – försök igen om en sekund"; return }
-        val adapter = (getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-        if (adapter == null || !adapter.isEnabled) {
-            statusText.text = "Slå på Bluetooth först"
-            return
-        }
-        val scanner = adapter.bluetoothLeScanner
-        if (scanner == null) {
-            statusText.text = "Bluetooth-skanner är inte tillgänglig"
-            return
-        }
-
-        found.clear()
-        statusText.text = "Söker (${role.label})…"
-        stopBleScan()
-
-        val cb = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val name = result.scanRecord?.deviceName
-                    ?: (try { result.device.name } catch (_: SecurityException) { null })
-                    ?: return
-                val ok = HismithProtocol.MACHINE_NAME_PREFIXES.any { name.contains(it, true) } ||
-                        HismithProtocol.LUBE_NAME_PREFIXES.any { name.contains(it, true) }
-                if (ok) found[result.device.address] = result.device
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                runOnUiThread { statusText.text = "Sökning misslyckades (fel $errorCode)" }
-            }
-        }
-        scanCallback = cb
-
-        try {
-            scanner.startScan(
-                null,
-                ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
-                cb
-            )
-        } catch (e: Exception) {
-            statusText.text = "Kunde inte starta sökning: ${e.message}"
-            return
-        }
-
-        cancelScanTimeout()
-        val timeout = Runnable {
-            scanTimeoutRunnable = null
-            stopBleScan()
-            if (isFinishing || isDestroyed) return@Runnable
-            if (found.isEmpty()) {
-                statusText.text = "Ingen enhet hittad"
-            } else {
-                val list = synchronized(found) { found.values.toList() }
-                val labels = list.map { "${it.name ?: "?"}\n${it.address}" }.toTypedArray()
-                MaterialAlertDialogBuilder(this)
-                    .setTitle("Välj enhet för: ${role.label}")
-                    .setItems(labels) { _, which ->
-                        statusText.text = "Ansluter…"
-                        service?.connectDevice(list[which], role)
-                    }
-                    .setNegativeButton("Avbryt", null)
-                    .show()
-            }
-        }
-        scanTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, SCAN_TIMEOUT_MS)
-    }
-
-    private fun stopBleScan() {
-        val cb = scanCallback ?: return
-        scanCallback = null
-        try {
-            (getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-                ?.bluetoothLeScanner?.stopScan(cb)
-        } catch (_: Exception) {}
-    }
-
-    private fun cancelScanTimeout() {
-        scanTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        scanTimeoutRunnable = null
-    }
-
-    private fun navigateUrlBar() {
-        var url = urlBar.text.toString().trim()
-        if (url.isEmpty()) return
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            url = if (url.contains(".") && !url.contains(" ")) "https://$url"
-            else "https://duckduckgo.com/?q=${Uri.encode(url)}"
-        }
-        loadUrlFromUser(url)
-    }
-
-    /** Navigation the user asked for (address bar or quick link). */
-    private fun loadUrlFromUser(url: String) {
-        urlBar.setText(url)
-        urlBar.clearFocus()
-        webView.loadUrl(url)
-        prefs.edit().putString("last_url", url).apply()
-    }
-
-    private fun showControlMode() {
-        if (customView != null) chromeClient.onHideCustomView()
-        controlPanel.visibility = View.VISIBLE
-        browserPanel.visibility = View.GONE
-        fullscreenContainer.visibility = View.GONE
-
-        overlayButtonsRequested = false
-        overlayMenuToggleRequested = false
-        refreshSessionControls()
-
-        // Immersive in the whole app: clock + battery stay hidden in the control panel too.
-        setImmersiveMode(true)
-        btnModeBrowser.alpha = 0.55f
-    }
-
-    private fun showBrowserMode() {
-        controlPanel.visibility = View.GONE
-        browserPanel.visibility = View.VISIBLE
-        browserTopBar.visibility = if (isTopBarHiddenInBrowser) View.GONE else View.VISIBLE
-
-        overlayButtonsRequested = true
-        overlayMenuToggleRequested = isTopBarHiddenInBrowser
-        refreshSessionControls()
-
-        setImmersiveMode(true)
-        btnModeBrowser.alpha = 1f
-    }
-
-    private fun hasBtPermissions(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-        } else {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        }
-    }
-
-    private fun requestPermissions() {
-        val perms = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            perms += Manifest.permission.BLUETOOTH_CONNECT
-            perms += Manifest.permission.BLUETOOTH_SCAN
-        } else perms += Manifest.permission.ACCESS_FINE_LOCATION
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms += Manifest.permission.POST_NOTIFICATIONS
-        if (perms.isNotEmpty()) ActivityCompat.requestPermissions(this, perms.toTypedArray(), REQ_PERMS)
-    }
-
-    private fun askIgnoreBatteryOptimizations() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val pm = getSystemService(PowerManager::class.java) ?: return
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                try {
-                    startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    })
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    private fun loadSettings() {
-        minTimeInput.setText(prefs.getInt("min_time", 20).toString())
-        maxTimeInput.setText(prefs.getInt("max_time", 45).toString())
-        autoLubeCheck.isChecked = prefs.getBoolean("auto_lube", true)
-        smartStrokeCheck.isChecked = prefs.getBoolean("smart_stroke", false)
-    }
-
-    private fun saveSettings() {
-        prefs.edit()
-            .putInt("min_time", minTimeInput.text.toString().toIntOrNull() ?: 20)
-            .putInt("max_time", maxTimeInput.text.toString().toIntOrNull() ?: 45)
-            .putBoolean("auto_lube", autoLubeCheck.isChecked)
-            .putBoolean("smart_stroke", smartStrokeCheck.isChecked)
-            .apply()
+        resumed = true
+        setImmersiveMode()
+        challengeTab.refresh()
+        state?.let { onState(it) }
     }
 
     override fun onPause() {
         super.onPause()
-        saveSettings()
-        webView.url?.let { prefs.edit().putString("last_url", it).apply() }
+        resumed = false
+        sessionTab.saveTimes()
+        webView.url?.let { settings.prefs.edit().putString("last_url", it).apply() }
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        cancelScanTimeout()
-        stopBleScan()
-        mainHandler.removeCallbacksAndMessages(null)
-        try { unregisterReceiver(statusReceiver) } catch (_: Exception) {}
+        devicePicker.release()
+        approvalDialog?.dismiss()
+        service?.removeListener(stateListener)
         if (bound) {
             try { unbindService(connection) } catch (_: Exception) {}
             bound = false
@@ -931,6 +256,444 @@ class MainActivity : AppCompatActivity() {
             (webView.parent as? ViewGroup)?.removeView(webView)
             webView.destroy()
         } catch (_: Exception) {}
+        super.onDestroy()
+    }
+
+    /** Start + bind the foreground service (it falls back to a plain FGS until BT is granted). */
+    private fun ensureServiceStarted() {
+        if (serviceStarted) return
+        serviceStarted = true
+        val svc = Intent(this, SessionService::class.java)
+        startForegroundService(svc)
+        bindService(svc, connection, Context.BIND_AUTO_CREATE)
+    }
+
+    // ================================================================== permissions
+
+    fun hasBtPermissions(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+    } else {
+        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun requestBtPermissions() {
+        val perms = ArrayList<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            perms += Manifest.permission.BLUETOOTH_CONNECT
+            perms += Manifest.permission.BLUETOOTH_SCAN
+        } else {
+            perms += Manifest.permission.ACCESS_FINE_LOCATION
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms += Manifest.permission.POST_NOTIFICATIONS
+        requestPermissions(perms.toTypedArray(), REQ_PERMS)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_PERMS) return
+        if (hasBtPermissions()) {
+            service?.startForegroundProtected()
+            service?.reconnectSaved()
+            askIgnoreBatteryOptimizations()
+        } else {
+            Ui.toast(this, "Utan Bluetooth-behörighet kan appen inte styra maskiner")
+        }
+    }
+
+    private fun askIgnoreBatteryOptimizations() {
+        val pm = getSystemService(PowerManager::class.java) ?: return
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:$packageName") })
+            } catch (_: Exception) {}
+        }
+    }
+
+    // ================================================================== views / tabs
+
+    private fun bindViews() {
+        rootContainer = findViewById(R.id.rootContainer)
+        mainColumn = findViewById(R.id.mainColumn)
+        pages = listOf(
+            findViewById(R.id.pageSession), findViewById(R.id.pageLube), findViewById(R.id.pageChallenge),
+            findViewById(R.id.pageRemote), findViewById(R.id.pageRecipe),
+        )
+        tabs = listOf(
+            findViewById(R.id.tabSession), findViewById(R.id.tabLube), findViewById(R.id.tabChallenge),
+            findViewById(R.id.tabRemote), findViewById(R.id.tabRecipe),
+        )
+        headerStatus = findViewById(R.id.headerStatus)
+        btnEmergency = findViewById(R.id.btnEmergency)
+        stoppedBanner = findViewById(R.id.stoppedBanner)
+        browserPanel = findViewById(R.id.browserPanel)
+        browserTopBar = findViewById(R.id.browserTopBar)
+        webView = findViewById(R.id.webView)
+        urlBar = findViewById(R.id.urlBar)
+        browserSpeed = findViewById(R.id.browserSpeed)
+        fullscreenContainer = findViewById(R.id.fullscreenContainer)
+        btnOverlayStop = findViewById(R.id.btnOverlayStop)
+        btnOverlayMega = findViewById(R.id.btnOverlayMega)
+        btnOverlayBarToggle = findViewById(R.id.btnOverlayBarToggle)
+    }
+
+    private fun setupTabs() {
+        tabs.forEachIndexed { i, t -> t.setOnClickListener { showTab(i) } }
+    }
+
+    fun showTab(index: Int) {
+        currentTab = index.coerceIn(0, pages.size - 1)
+        pages.forEachIndexed { i, p -> p.visibility = if (i == currentTab) View.VISIBLE else View.GONE }
+        tabs.forEachIndexed { i, t -> t.setTextColor(getColor(if (i == currentTab) R.color.gold else R.color.dim)) }
+        if (currentTab == TAB_CHALLENGE) challengeTab.refresh()
+        state?.let { renderTab(it) }
+    }
+
+    private fun setupHeader() {
+        btnEmergency.setOnClickListener { emergencyStop() }
+        stoppedBanner.setOnClickListener { service?.clearStop() }
+        findViewById<Button>(R.id.btnModeBrowser).setOnClickListener { showBrowserMode() }
+    }
+
+    private fun emergencyStop() {
+        service?.emergencyStop(Source.LOCAL)
+            ?: startService(Intent(this, SessionService::class.java).setAction(SessionService.ACTION_STOP))
+        Toast.makeText(this, "STOPP", Toast.LENGTH_SHORT).show()
+    }
+
+    // ================================================================== state
+
+    private fun onState(st: UiState) {
+        state = st
+        if (!::sessionTab.isInitialized) return
+        val machines = st.devices.count { it.role.isMotion && it.connected }
+        headerStatus.text = buildString {
+            append("v2.0 · $machines maskin${if (machines == 1) "" else "er"}")
+            append(if (st.lube.connected) " · lube ✓" else " · ingen lube")
+            if (st.remote.status != RemoteHost.Status.OFF) append(" · länk: ${if (st.remote.controllerActive) "aktiv" else "på"}")
+            append(" · ${st.mode.label}")
+        }
+        btnEmergency.visibility = if (st.stopRelevant) View.VISIBLE else View.GONE
+        stoppedBanner.visibility = if (st.safety == CommandArbiter.Safety.STOPPED) View.VISIBLE else View.GONE
+        if (st.safety == CommandArbiter.Safety.STOPPED) stoppedBanner.text = "STOPPAD (${st.safetyReason}) – tryck för att kvittera"
+        browserSpeed.text = if (st.session.running || st.control != CommandArbiter.Control.NONE) "${st.speed} %" else ""
+        refreshOverlays()
+        renderTab(st)
+        handleApproval(st)
+    }
+
+    private fun renderTab(st: UiState) {
+        if (browserPanel.visibility == View.VISIBLE) return
+        when (currentTab) {
+            TAB_SESSION -> sessionTab.render(st)
+            TAB_LUBE -> lubeTab.render(st)
+            TAB_CHALLENGE -> challengeTab.render(st)
+            TAB_REMOTE -> remoteTab.render(st)
+        }
+    }
+
+    private fun handleApproval(st: UiState) {
+        if (!st.remote.pendingApproval) {
+            approvalDialog?.dismiss()
+            approvalDialog = null
+            return
+        }
+        if (approvalDialog != null || !resumed) return
+        approvalDialog = Ui.dialog(this)
+            .setTitle("Mottagare vill ansluta")
+            .setMessage("Någon har öppnat din engångslänk och vill styra. Godkänn bara om du väntar dig det.\n\nSTOPP på telefonen fungerar alltid.")
+            .setCancelable(false)
+            .setPositiveButton("Godkänn") { _, _ -> service?.remoteApprove() }
+            .setNegativeButton("Neka") { _, _ -> service?.remoteDeny() }
+            .setOnDismissListener { approvalDialog = null }
+            .show()
+    }
+
+    // ================================================================== browser
+
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
+    private fun setupWebView() {
+        // Debug builds only: chrome://inspect for checking which elements on a site are ads.
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) WebView.setWebContentsDebuggingEnabled(true)
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            allowFileAccess = false
+            allowContentAccess = false
+            setGeolocationEnabled(false)
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            builtInZoomControls = true
+            displayZoomControls = false
+            userAgentString = userAgentString.replace("; wv", "").replace("Version/4.0", "")
+        }
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
+        webView.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_UP) {
+                lastUserTouchMs = SystemClock.uptimeMillis()
+            }
+            false
+        }
+        webView.setDownloadListener { _, _, _, mimeType, _ -> showBlockedToast("Nedladdning blockerad ($mimeType)") }
+        webView.webViewClient = AdBlockWebViewClient(
+            onPageStarted = { url -> runOnUiThread { urlBar.setText(url ?: "") } },
+            onBlocked = { reason -> runOnUiThread { showBlockedToast("Blockerade: $reason") } },
+            hasRecentUserTouch = { SystemClock.uptimeMillis() - lastUserTouchMs < USER_TOUCH_WINDOW_MS },
+        )
+        webView.webChromeClient = chromeClient
+        webView.loadUrl(settings.prefs.getString("last_url", HOME_URL) ?: HOME_URL)
+    }
+
+    private fun setupQuickLinks() {
+        val row = findViewById<LinearLayout>(R.id.quickLinksRow)
+        QUICK_LINKS.forEach { (label, url) ->
+            val b = Button(this, null, 0, R.style.Btn_Outline).apply {
+                text = label
+                textSize = 12f
+                minWidth = 0
+                minimumWidth = 0
+                minHeight = 0
+                minimumHeight = 0
+                setPadding(Ui.dp(this@MainActivity, 12), 0, Ui.dp(this@MainActivity, 12), 0)
+                setOnClickListener { loadUrlFromUser(url) }
+            }
+            row.addView(b, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 30)).apply { marginEnd = Ui.dp(this@MainActivity, 6) })
+        }
+    }
+
+    private fun setupBrowserClicks() {
+        findViewById<Button>(R.id.btnModeControlFromBrowser).setOnClickListener { showControlMode() }
+        findViewById<Button>(R.id.btnBrowserBack).setOnClickListener { if (webView.canGoBack()) webView.goBack() }
+        findViewById<Button>(R.id.btnBrowserForward).setOnClickListener { if (webView.canGoForward()) webView.goForward() }
+        findViewById<Button>(R.id.btnBrowserHome).setOnClickListener { loadUrlFromUser(HOME_URL) }
+        findViewById<Button>(R.id.btnBrowserRefresh).setOnClickListener { webView.reload() }
+        findViewById<Button>(R.id.btnGoUrl).setOnClickListener { navigateUrlBar() }
+        urlBar.setOnEditorActionListener { _, _, _ -> navigateUrlBar(); true }
+        findViewById<Button>(R.id.btnHideTopBar).setOnClickListener {
+            isTopBarHiddenInBrowser = true
+            browserTopBar.visibility = View.GONE
+            overlayButtonsRequested = true
+            overlayMenuToggleRequested = true
+            refreshOverlays()
+            setImmersiveMode()
+        }
+        btnOverlayStop.setOnClickListener { emergencyStop() }
+        btnOverlayMega.setOnClickListener {
+            service?.dose(DoseKind.SUPER, null)
+            Toast.makeText(this, "SUPER SPRUT", Toast.LENGTH_SHORT).show()
+        }
+        btnOverlayBarToggle.setOnClickListener {
+            if (customView != null) {
+                chromeClient.onHideCustomView()
+            } else {
+                isTopBarHiddenInBrowser = false
+                browserTopBar.visibility = View.VISIBLE
+                overlayMenuToggleRequested = false
+                refreshOverlays()
+            }
+        }
+    }
+
+    private fun showBlockedToast(message: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastBlockToastMs < 4000) return
+        lastBlockToastMs = now
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun navigateUrlBar() {
+        var url = urlBar.text.toString().trim()
+        if (url.isEmpty()) return
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            url = if (url.contains(".") && !url.contains(" ")) "https://$url" else "https://duckduckgo.com/?q=${Uri.encode(url)}"
+        }
+        loadUrlFromUser(url)
+    }
+
+    private fun loadUrlFromUser(url: String) {
+        urlBar.setText(url)
+        urlBar.clearFocus()
+        webView.loadUrl(url)
+        settings.prefs.edit().putString("last_url", url).apply()
+    }
+
+    private fun showControlMode() {
+        if (customView != null) chromeClient.onHideCustomView()
+        mainColumn.visibility = View.VISIBLE
+        browserPanel.visibility = View.GONE
+        fullscreenContainer.visibility = View.GONE
+        overlayButtonsRequested = false
+        overlayMenuToggleRequested = false
+        refreshOverlays()
+        setImmersiveMode()
+        state?.let { renderTab(it) }
+    }
+
+    private fun showBrowserMode() {
+        mainColumn.visibility = View.GONE
+        browserPanel.visibility = View.VISIBLE
+        browserTopBar.visibility = if (isTopBarHiddenInBrowser) View.GONE else View.VISIBLE
+        overlayButtonsRequested = true
+        overlayMenuToggleRequested = isTopBarHiddenInBrowser
+        refreshOverlays()
+        setImmersiveMode()
+    }
+
+    // ================================================================== overlays
+
+    /**
+     * Single source of truth for the floating buttons: STOPP and SUPER SPRUT only while something
+     * can actually move or pump, the "Meny" toggle whenever the address bar is hidden.
+     */
+    private fun refreshOverlays() {
+        if (!::rootContainer.isInitialized) return
+        val st = state
+        val stopVis = if (st?.stopRelevant == true && overlayButtonsRequested) View.VISIBLE else View.GONE
+        val megaVis = if (stopVis == View.VISIBLE && st?.lube?.connected == true && st.mode.lubeAllowed) View.VISIBLE else View.GONE
+        val menuVis = if (overlayButtonsRequested && overlayMenuToggleRequested) View.VISIBLE else View.GONE
+        if (btnOverlayStop.visibility == stopVis && btnOverlayMega.visibility == megaVis && btnOverlayBarToggle.visibility == menuVis) return
+        btnOverlayStop.visibility = stopVis
+        btnOverlayMega.visibility = megaVis
+        btnOverlayBarToggle.visibility = menuVis
+        if (stopVis == View.VISIBLE) btnOverlayStop.bringToFront()
+        if (megaVis == View.VISIBLE) btnOverlayMega.bringToFront()
+        if (menuVis == View.VISIBLE) btnOverlayBarToggle.bringToFront()
+        rootContainer.post { restoreOverlayPositions() }
+    }
+
+    /**
+     * Draggable overlay buttons. No `bringToFront()` on ACTION_DOWN: reordering views mid-gesture
+     * makes Chromium drop the touch stream and leave fullscreen video.
+     */
+    private fun setupDraggableOverlays() {
+        makeDraggable(btnOverlayStop, "overlay_stop")
+        makeDraggable(btnOverlayMega, "overlay_mega")
+        makeDraggable(btnOverlayBarToggle, "overlay_menu")
+        rootContainer.post { restoreOverlayPositions() }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun makeDraggable(view: View, key: String) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var startX = 0f
+        var startY = 0f
+        var dragging = false
+        view.setOnTouchListener { v, e ->
+            val parent = v.parent as? View ?: return@setOnTouchListener false
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY; startX = v.x; startY = v.y; dragging = false; true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = e.rawX - downX
+                    val dy = e.rawY - downY
+                    if (!dragging && hypot(dx.toDouble(), dy.toDouble()) > touchSlop) dragging = true
+                    if (dragging) {
+                        v.x = (startX + dx).coerceIn(0f, (parent.width - v.width).coerceAtLeast(0).toFloat())
+                        v.y = (startY + dy).coerceIn(0f, (parent.height - v.height).coerceAtLeast(0).toFloat())
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!dragging) {
+                        v.performClick()
+                    } else {
+                        val maxX = (parent.width - v.width).coerceAtLeast(1).toFloat()
+                        val maxY = (parent.height - v.height).coerceAtLeast(1).toFloat()
+                        settings.prefs.edit()
+                            .putFloat("${key}_rx", (v.x / maxX).coerceIn(0f, 1f))
+                            .putFloat("${key}_ry", (v.y / maxY).coerceIn(0f, 1f))
+                            .apply()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> { dragging = false; true }
+                else -> false
+            }
+        }
+    }
+
+    private fun restoreOverlayPositions() {
+        place(btnOverlayStop, "overlay_stop")
+        place(btnOverlayMega, "overlay_mega")
+        place(btnOverlayBarToggle, "overlay_menu")
+    }
+
+    private fun place(view: View, key: String) {
+        val p = rootContainer
+        if (p.width <= 0 || p.height <= 0 || view.width <= 0 || view.height <= 0) return
+        val maxX = (p.width - view.width).coerceAtLeast(0).toFloat()
+        val maxY = (p.height - view.height).coerceAtLeast(0).toFloat()
+        val prefs = settings.prefs
+        if (prefs.contains("${key}_rx") && prefs.contains("${key}_ry")) {
+            view.x = prefs.getFloat("${key}_rx", 0f).coerceIn(0f, 1f) * maxX
+            view.y = prefs.getFloat("${key}_ry", 1f).coerceIn(0f, 1f) * maxY
+        } else {
+            view.x = view.x.coerceIn(0f, maxX)
+            view.y = view.y.coerceIn(0f, maxY)
+        }
+    }
+
+    // ================================================================== immersive
+
+    /**
+     * Hides status and navigation bars everywhere in the app (control panel, browser, video).
+     * Bars can be swiped in temporarily.
+     */
+    @Suppress("DEPRECATION")
+    private fun setImmersiveMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let {
+                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                it.hide(WindowInsets.Type.systemBars())
+            }
+        } else {
+            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        }
+    }
+
+    /** Keep the header and the browser bar out of the camera cut-out. */
+    private fun applyCutoutInsets() {
+        rootContainer.setOnApplyWindowInsetsListener { _, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val c = insets.displayCutout
+                val top = c?.safeInsetTop ?: 0
+                val left = c?.safeInsetLeft ?: 0
+                val right = c?.safeInsetRight ?: 0
+                mainColumn.setPadding(left, top, right, 0)
+                browserTopBar.setPadding(Ui.dp(this, 6) + left, Ui.dp(this, 4) + top, Ui.dp(this, 6) + right, Ui.dp(this, 2))
+            }
+            insets
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) setImmersiveMode()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        setImmersiveMode()
+        rootContainer.postDelayed({ restoreOverlayPositions() }, 100)
     }
 
     @Deprecated("Deprecated in Java")
@@ -939,7 +702,8 @@ class MainActivity : AppCompatActivity() {
             customView != null -> chromeClient.onHideCustomView()
             browserPanel.visibility == View.VISIBLE && webView.canGoBack() -> webView.goBack()
             browserPanel.visibility == View.VISIBLE -> showControlMode()
-            else -> super.onBackPressed()
+            currentTab != TAB_SESSION -> showTab(TAB_SESSION)
+            else -> @Suppress("DEPRECATION") super.onBackPressed()
         }
     }
 }

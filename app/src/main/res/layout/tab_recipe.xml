@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pageRecipe"
+    style="@style/Page"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/PageColumn">
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="MEGA-LUBE · RECEPT" />
+
+            <TextView
+                android:id="@+id/recipeIntro"
+                style="@style/Body" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="SATS" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    android:id="@+id/recVariantStd"
+                    style="@style/Segment"
+                    android:text="Grundrecept" />
+
+                <View style="@style/Gap" />
+
+                <TextView
+                    android:id="@+id/recVariantX"
+                    style="@style/Segment"
+                    android:text="XLube-bas" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="10dp"
+                android:text="Satsens vikt (g)" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/recBatch"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/recBatch100"
+                    style="@style/Btn.Dark"
+                    android:layout_marginTop="4dp"
+                    android:layout_height="44dp"
+                    android:text="100 g" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/recBatch1k"
+                    style="@style/Btn.Dark"
+                    android:layout_marginTop="4dp"
+                    android:layout_height="44dp"
+                    android:text="1 kg" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/recBatch5k"
+                    style="@style/Btn.Dark"
+                    android:layout_marginTop="4dp"
+                    android:layout_height="44dp"
+                    android:text="5 kg" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/recAnhydrous"
+                style="@style/Toggle"
+                android:layout_marginTop="6dp"
+                android:text="Vattenfritt natriumcitrat (1,75 g/kg)" />
+
+            <Switch
+                android:id="@+id/recPreservative"
+                style="@style/Toggle"
+                android:text="Konservering: 1 % fenoxietanol" />
+
+            <LinearLayout
+                android:id="@+id/recStdOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <Switch
+                    android:id="@+id/recLonger"
+                    style="@style/Toggle"
+                    android:text="Längre trådar" />
+
+                <Switch
+                    android:id="@+id/recThinner"
+                    style="@style/Toggle"
+                    android:text="Tunnare – lättare att pumpa" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/recWhiter"
+                style="@style/Toggle"
+                android:text="Vitare" />
+
+            <Switch
+                android:id="@+id/recLessSalt"
+                style="@style/Toggle"
+                android:text="Mindre salt" />
+
+            <LinearLayout
+                android:id="@+id/recXOptions"
+                style="@style/Row"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/Label"
+                    android:text="XLube g/kg" />
+
+                <SeekBar
+                    android:id="@+id/recXlube"
+                    style="@style/Slider"
+                    android:max="6" />
+
+                <TextView
+                    android:id="@+id/recXlubeVal"
+                    style="@style/Value" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="INGREDIENSER" />
+
+            <TableLayout
+                android:id="@+id/recTable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:shrinkColumns="0"
+                android:stretchColumns="0" />
+
+            <TextView
+                android:id="@+id/recOsm"
+                style="@style/Body"
+                android:layout_marginTop="10dp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/recNotes"
+                style="@style/Muted"
+                android:paddingTop="4dp" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="GÖR SÅ HÄR" />
+
+            <TextView
+                android:id="@+id/recSteps"
+                style="@style/Body" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="SÄKERHET OCH HÅLLBARHET" />
+
+            <TextView
+                android:id="@+id/recSafety"
+                style="@style/Body" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="HUR LIK BLIR DEN" />
+
+            <TextView
+                android:id="@+id/recLikeness"
+                style="@style/Body" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="KÄLLOR" />
+
+            <TextView
+                android:id="@+id/recSources"
+                style="@style/Muted" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
