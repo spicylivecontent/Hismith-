@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#08080A">
+  <title>Hismith Remote</title>
+  <link rel="stylesheet" href="/r/style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <div class="brand">HISMITH REMOTE</div>
+      <div id="conn" class="conn">Ansluter…</div>
+    </div>
+    <span id="dot" class="dot"></span>
+  </header>
+
+  <main>
+    <section id="msg" class="card msg hidden"></section>
+
+    <section id="panel" class="hidden">
+      <div class="card live">
+        <div class="row">
+          <div>
+            <div id="time" class="time">00:00</div>
+            <div id="remaining" class="muted">ingen session</div>
+          </div>
+          <div class="right">
+            <div id="speed" class="speed">0 %</div>
+            <div class="muted">hastighet</div>
+          </div>
+        </div>
+        <div id="phase" class="phase">Redo</div>
+        <div id="info" class="muted"></div>
+      </div>
+
+      <div class="tabs">
+        <button id="tabManual" class="seg selected" type="button">Manuell</button>
+        <button id="tabAuto" class="seg" type="button">Automatik</button>
+      </div>
+
+      <div id="manual" class="card">
+        <button id="manualToggle" class="btn gold" type="button">Starta manuell styrning</button>
+        <div id="manualBox" class="hidden">
+          <label class="label" for="speedSlider">Hastighet <b id="speedVal">0 %</b></label>
+          <input id="speedSlider" type="range" min="0" max="100" value="0">
+          <div class="quick">
+            <button class="btn dark" data-speed="0" type="button">0</button>
+            <button class="btn dark" data-speed="25" type="button">25</button>
+            <button class="btn dark" data-speed="50" type="button">50</button>
+            <button class="btn dark" data-speed="75" type="button">75</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="auto" class="card hidden">
+        <div class="row2">
+          <label class="label">Minst (min)<input id="autoMin" type="number" min="1" max="240" value="15"></label>
+          <label class="label">Högst (min)<input id="autoMax" type="number" min="0" max="240" value="25"></label>
+        </div>
+        <label class="label" for="intensity">Intensitet <b id="intensityVal">50 %</b></label>
+        <input id="intensity" type="range" min="0" max="100" value="50">
+        <button id="autoStart" class="btn gold" type="button">Starta automatik</button>
+        <div class="row2">
+          <button id="finalNow" class="btn outline" type="button">Final nu</button>
+          <button id="autoEnd" class="btn dark" type="button">Avsluta</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row2">
+          <button id="pause" class="btn dark" type="button">Pausa</button>
+          <button id="resume" class="btn outline" type="button">Fortsätt</button>
+        </div>
+        <div id="lubeRow" class="row2 hidden">
+          <button id="extra" class="btn outline" type="button">EXTRA</button>
+          <button id="super" class="btn red" type="button">SUPER</button>
+        </div>
+      </div>
+
+      <p class="muted center">Håll sidan öppen. Stänger du den eller tappar nätet stoppas allt du styr efter några sekunder – och inget startar om av sig självt.</p>
+    </section>
+  </main>
+
+  <footer>
+    <button id="stop" class="stop" type="button">STOPP</button>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/r/app.js"></script>
+</body>
+</html>
