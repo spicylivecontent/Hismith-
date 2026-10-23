@@ -83,9 +83,21 @@
             <Button
                 android:id="@+id/btnHideTopBar"
                 style="@style/Btn.Text"
-                android:text="Dölj fält ▲"
+                android:text="Dölj ▲"
                 android:textColor="@color/muted"
                 android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnFavorite"
+                style="@style/Btn.Text"
+                android:text="☆"
+                android:textSize="17sp" />
+
+            <Button
+                android:id="@+id/btnBrowserMenu"
+                style="@style/Btn.Text"
+                android:text="⋯"
+                android:textSize="17sp" />
 
             <View
                 android:layout_width="0dp"

@@ -312,6 +312,43 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="12dp"
+                android:text="Sprutet"
+                android:textColor="@color/gold_light" />
+
+            <Switch
+                android:id="@+id/swPulsedFinal"
+                style="@style/Toggle"
+                android:text="Final som pulserande stötar (realistisk)" />
+
+            <Switch
+                android:id="@+id/swPulsedSuper"
+                style="@style/Toggle"
+                android:text="SUPER SPRUT som stötar" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="64dp"
+                    android:text="Stötar" />
+
+                <SeekBar
+                    android:id="@+id/seekPulses"
+                    style="@style/Slider"
+                    android:max="10" />
+
+                <TextView
+                    android:id="@+id/valPulses"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Muted"
+                android:text="Varje stöt blir lite mindre och pauserna lite längre – som ett riktigt sprut. Total volym är densamma." />
+
             <Button
                 android:id="@+id/btnSaveLube"
                 style="@style/Btn.Gold"

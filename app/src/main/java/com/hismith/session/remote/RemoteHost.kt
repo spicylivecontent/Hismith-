@@ -2,12 +2,15 @@ package com.hismith.session.remote
 
 import android.os.Handler
 import android.os.SystemClock
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -30,7 +33,7 @@ class RemoteHost(private val handler: Handler, private val listener: Listener) {
 
     enum class Status(val label: String) {
         OFF("Av"),
-        CONNECTING("Ansluter till servern…"),
+        CONNECTING("Ansluter till servern… (en gratisserver kan behöva upp till en minut för att vakna)"),
         READY("Länken är redo – väntar på mottagaren"),
         PENDING("Mottagaren väntar på ditt godkännande"),
         ACTIVE("Mottagaren är ansluten"),
@@ -52,6 +55,47 @@ class RemoteHost(private val handler: Handler, private val listener: Listener) {
             if (!u.contains("://")) u = "https://$u"
             if (!u.startsWith("https://") || u.length <= "https://".length) return null
             return u
+        }
+
+        /** Free hosts sleep when idle; the first request can take up to a minute. */
+        private val wakeClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(90, TimeUnit.SECONDS)
+                .readTimeout(90, TimeUnit.SECONDS)
+                .callTimeout(100, TimeUnit.SECONDS)
+                .build()
+        }
+
+        data class ProbeResult(
+            val ok: Boolean,
+            val ms: Long,
+            val secretRequired: Boolean? = null,
+            val version: String? = null,
+            val error: String? = null,
+        )
+
+        /** Checks `<server>/api/info`. [onResult] runs on a background thread. */
+        fun probe(serverUrl: String, onResult: (ProbeResult) -> Unit) {
+            val base = normalize(serverUrl) ?: return onResult(ProbeResult(false, 0, error = "Adressen måste börja med https://"))
+            val started = SystemClock.elapsedRealtime()
+            wakeClient.newCall(Request.Builder().url("$base/api/info").build()).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    onResult(ProbeResult(false, SystemClock.elapsedRealtime() - started, error = e.message ?: "nätverksfel"))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { r ->
+                        val ms = SystemClock.elapsedRealtime() - started
+                        val body = try { r.body?.string() } catch (_: IOException) { null }
+                        val info = try { body?.let { JSONObject(it) } } catch (_: Exception) { null }
+                        when {
+                            !r.isSuccessful -> onResult(ProbeResult(false, ms, error = "HTTP ${r.code} – är det rätt adress?"))
+                            info?.optString("name") != "hismith-relay" -> onResult(ProbeResult(false, ms, error = "Svarar, men det är ingen Hismith-relay"))
+                            else -> onResult(ProbeResult(true, ms, info.optBoolean("secretRequired"), info.optString("version")))
+                        }
+                    }
+                }
+            })
         }
     }
 
@@ -102,8 +146,19 @@ class RemoteHost(private val handler: Handler, private val listener: Listener) {
         errorMessage = null
         reconnectDelay = 1_000L
         status = Status.CONNECTING
-        open()
         listener.onRemoteChanged()
+        // Wake a sleeping free server first, then open the WebSocket (also if the wake-up fails).
+        val gen = generation
+        wakeClient.newCall(Request.Builder().url("$baseUrl/healthz").build()).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                handler.post { if (gen == generation && status == Status.CONNECTING) open() }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.close()
+                handler.post { if (gen == generation && status == Status.CONNECTING) open() }
+            }
+        })
     }
 
     private fun open() {

@@ -42,7 +42,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:singleLine="true"
-                    android:text="v2.0 · Redo"
+                    android:text="v2.1 · Redo"
                     android:textColor="@color/muted"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -173,6 +173,78 @@
         android:background="@drawable/bg_overlay_gold"
         android:text="⋮⋮ SUPER SPRUT"
         android:textColor="@color/gold_pale" />
+
+    <!-- Mini control panel in the browser: drag by the handle -->
+    <LinearLayout
+        android:id="@+id/miniPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="80dp"
+        android:alpha="0.94"
+        android:background="@drawable/bg_overlay_menu"
+        android:elevation="24dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="2dp"
+        android:paddingRight="2dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/miniHandle"
+            android:layout_width="26dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⋮⋮"
+            android:textColor="@color/gold"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/miniSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="42dp"
+            android:gravity="center"
+            android:text="0 %"
+            android:textColor="@color/gold_pale"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/miniMinus"
+            style="@style/Btn.Mini"
+            android:text="−" />
+
+        <Button
+            android:id="@+id/miniPlus"
+            style="@style/Btn.Mini"
+            android:text="+" />
+
+        <Button
+            android:id="@+id/miniBoost"
+            style="@style/Btn.Mini"
+            android:text="⚡" />
+
+        <Button
+            android:id="@+id/miniEdge"
+            style="@style/Btn.Mini"
+            android:text="🎯" />
+
+        <Button
+            android:id="@+id/miniRest"
+            style="@style/Btn.Mini"
+            android:text="💤" />
+
+        <Button
+            android:id="@+id/miniExtra"
+            style="@style/Btn.Mini"
+            android:text="💧" />
+
+        <Button
+            android:id="@+id/miniPause"
+            style="@style/Btn.Mini"
+            android:text="⏸" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnOverlayBarToggle"

@@ -11,13 +11,20 @@ sealed class RemoteCommand {
     object ManualStart : RemoteCommand()
     object ManualEnd : RemoteCommand()
     data class Speed(val percent: Int) : RemoteCommand()
-    data class AutoStart(val minMinutes: Int, val maxMinutes: Int, val intensity: Int) : RemoteCommand()
+    data class AutoStart(
+        val minMinutes: Int,
+        val maxMinutes: Int,
+        val intensity: Int,
+        val style: SessionStyle? = null,
+    ) : RemoteCommand()
     object AutoEnd : RemoteCommand()
     object FinalNow : RemoteCommand()
     data class Intensity(val percent: Int) : RemoteCommand()
     object Pause : RemoteCommand()
     object Resume : RemoteCommand()
     data class Lube(val kind: DoseKind) : RemoteCommand()
+    data class Action(val action: QuickAction) : RemoteCommand()
+    data class Style(val style: SessionStyle) : RemoteCommand()
 
     companion object {
         /** Parses `{"k": "...", ...}`. Unknown or out-of-range input gives null (ignored). */
@@ -32,13 +39,16 @@ sealed class RemoteCommand {
                     val min = c.intIn("min", 1, 240) ?: return null
                     val max = c.intIn("max", 0, 240) ?: return null
                     val intensity = c.intIn("intensity", 0, 100) ?: 50
-                    AutoStart(min, if (max == 0) 0 else maxOf(min, max), intensity)
+                    val style = if (c.has("style")) SessionStyle.parse(c.optString("style")) ?: return null else null
+                    AutoStart(min, if (max == 0) 0 else maxOf(min, max), intensity, style)
                 }
                 "auto_end" -> AutoEnd
                 "final_now" -> FinalNow
                 "intensity" -> c.intIn("v", 0, 100)?.let { Intensity(it) }
                 "pause" -> Pause
                 "resume" -> Resume
+                "action" -> QuickAction.parse(c.optString("a"))?.let { Action(it) }
+                "style" -> SessionStyle.parse(c.optString("v"))?.let { Style(it) }
                 "lube" -> when (c.optString("kind")) {
                     "extra" -> Lube(DoseKind.EXTRA)
                     "super" -> Lube(DoseKind.SUPER)

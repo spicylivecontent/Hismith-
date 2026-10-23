@@ -109,6 +109,15 @@
         <item name="android:textColor">#FFFFFF</item>
     </style>
 
+    <style name="Btn.Quick">
+        <item name="android:background">@drawable/bg_btn_dark</item>
+        <item name="android:textColor">@color/gold_pale</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:paddingLeft">2dp</item>
+        <item name="android:paddingRight">2dp</item>
+        <item name="android:layout_height">44dp</item>
+    </style>
+
     <style name="Btn.Text">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_weight">0</item>
@@ -120,8 +129,23 @@
         <item name="android:textSize">13sp</item>
     </style>
 
+    <style name="Btn.Mini" parent="Btn.Text">
+        <item name="android:minWidth">36dp</item>
+        <item name="android:layout_width">36dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:paddingLeft">0dp</item>
+        <item name="android:paddingRight">0dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/gold_pale</item>
+    </style>
+
     <style name="Gap">
         <item name="android:layout_width">8dp</item>
+        <item name="android:layout_height">1dp</item>
+    </style>
+
+    <style name="GapSmall">
+        <item name="android:layout_width">6dp</item>
         <item name="android:layout_height">1dp</item>
     </style>
 
@@ -191,6 +215,11 @@
         <item name="android:textColor">@color/muted</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Segment.Small">
+        <item name="android:layout_height">38dp</item>
+        <item name="android:textSize">13sp</item>
     </style>
 
     <style name="Tab">

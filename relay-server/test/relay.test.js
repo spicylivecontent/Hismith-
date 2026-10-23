@@ -237,3 +237,13 @@ test('http: health, controller page with strict headers, nothing else', async ()
   assert.equal((await fetch(`${env.http}/r/../src/server.js`)).status, 404);
   assert.equal((await fetch(`${env.http}/etc/passwd`)).status, 404);
 });
+
+test('api/info tells the app what it is talking to', async () => {
+  const info = await (await fetch(`${env.http}/api/info`)).json();
+  assert.equal(info.name, 'hismith-relay');
+  assert.equal(info.secretRequired, false);
+  assert.match(info.version, /^\d+\.\d+\.\d+$/);
+  const sec = await startRelay({ hostSecret: 'x' });
+  assert.equal((await (await fetch(`${sec.http}/api/info`)).json()).secretRequired, true);
+  await sec.relay.close();
+});

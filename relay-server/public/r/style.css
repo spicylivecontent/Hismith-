@@ -111,6 +111,21 @@ main { padding: 0 14px; max-width: 560px; margin: 0 auto; }
 
 input[type=range] { width: 100%; height: 40px; accent-color: var(--gold); margin: 6px 0; }
 .quick { display: flex; gap: 6px; }
+.quick4 { margin-top: 8px; }
+.quick4 .btn { height: 46px; font-size: 14px; color: var(--gold-pale); }
+
+select {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin-top: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--gold-pale);
+  font-size: 15px;
+  padding: 0 10px;
+}
 .quick .btn { height: 40px; margin-top: 0; }
 
 footer {

@@ -3,6 +3,8 @@ package com.hismith.session.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
+import android.util.Base64
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -15,6 +17,7 @@ import com.hismith.session.UiState
 import com.hismith.session.core.Source
 import com.hismith.session.remote.KeystoreBox
 import com.hismith.session.remote.RemoteHost
+import java.security.SecureRandom
 
 /** Remote tab: one-time link, relay server, and the rules for the person holding the link. */
 class RemoteTab(private val a: MainActivity) {
@@ -39,6 +42,12 @@ class RemoteTab(private val a: MainActivity) {
     private val valStop: TextView = a.findViewById(R.id.rmStopSecVal)
     private val seekRevoke: SeekBar = a.findViewById(R.id.rmRevokeSec)
     private val valRevoke: TextView = a.findViewById(R.id.rmRevokeSecVal)
+    private val testResult: TextView = a.findViewById(R.id.rmTestResult)
+
+    companion object {
+        /** One-tap Render deploy of relay-server/ (render.yaml in the repo root). */
+        const val RENDER_DEPLOY_URL = "https://render.com/deploy?repo=https://github.com/spicylivecontent/Hismith-"
+    }
 
     init {
         url.setText(settings.serverUrl)
@@ -75,7 +84,20 @@ class RemoteTab(private val a: MainActivity) {
             a.service?.settingsChanged()
         })
 
-        a.findViewById<Button>(R.id.btnRmSave).setOnClickListener { saveServer() }
+        a.findViewById<Button>(R.id.btnRmSave).setOnClickListener { if (saveServer()) testServer() }
+        a.findViewById<Button>(R.id.btnRmGenSecret).setOnClickListener { generateSecret() }
+        a.findViewById<Button>(R.id.btnRmCopySecret).setOnClickListener {
+            val sec = KeystoreBox.decrypt(settings.hostSecretEncrypted)
+            if (sec == null) Ui.toast(a, "Ingen hemlighet sparad – tryck steg 1") else copy("Hemlighet", sec, "Hemligheten kopierad")
+        }
+        a.findViewById<Button>(R.id.btnRmOpenRender).setOnClickListener {
+            if (settings.hostSecretEncrypted == null) generateSecret()
+            try {
+                a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RENDER_DEPLOY_URL)))
+            } catch (_: Exception) {
+                Ui.toast(a, "Ingen webbläsare hittades")
+            }
+        }
         btnStart.setOnClickListener {
             val st = a.state ?: return@setOnClickListener
             if (settings.serverUrl.isBlank()) saveServer()
@@ -96,17 +118,56 @@ class RemoteTab(private val a: MainActivity) {
         }
         a.findViewById<Button>(R.id.btnRmCopy).setOnClickListener {
             val l = a.state?.remote?.link ?: return@setOnClickListener
-            a.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Länk", l))
-            Ui.toast(a, "Länken kopierad")
+            copy("Länk", l, "Länken kopierad")
         }
     }
 
-    private fun saveServer() {
+    private fun copy(label: String, text: String, toast: String) {
+        a.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(label, text))
+        Ui.toast(a, toast)
+    }
+
+    /** Step 1: a long random secret, stored encrypted and copied for pasting into Render. */
+    private fun generateSecret() {
+        val bytes = ByteArray(24).also { SecureRandom().nextBytes(it) }
+        val secret = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        settings.hostSecretEncrypted = KeystoreBox.encrypt(secret)
+        secret.let { copy("Hemlighet", it, "Hemligheten är kopierad – klistra in den i HOST_SECRET på Render") }
+        this.secret.setText("")
+        this.secret.hint = "Sparad (lämna tomt för att behålla)"
+    }
+
+    /** Step 4: does the server answer, is it ours, and does it want a secret? */
+    private fun testServer() {
+        val url = settings.serverUrl
+        if (url.isBlank()) return
+        testResult.visibility = View.VISIBLE
+        testResult.setTextColor(a.getColor(R.color.muted))
+        testResult.text = "Testar servern… (en sovande gratisserver kan ta upp till en minut)"
+        RemoteHost.probe(url) { r ->
+            a.runOnUiThread {
+                val hasSecret = settings.hostSecretEncrypted != null
+                val (text, color) = when {
+                    !r.ok -> "✕ ${r.error}" to R.color.red
+                    r.secretRequired == false -> "⚠ Servern svarar (${Ui.num(r.ms / 1000.0)} s) men har ingen HOST_SECRET – vem som helst kan skapa länkar via den. Lägg till hemligheten på Render." to R.color.amber
+                    !hasSecret -> "⚠ Servern kräver en hemlighet – fyll i samma HOST_SECRET här." to R.color.amber
+                    else -> "✓ Servern fungerar (svar på ${Ui.num(r.ms / 1000.0)} s, version ${r.version}). Tryck Skapa länk ovan!" to R.color.green
+                }
+                testResult.text = text
+                testResult.setTextColor(a.getColor(color))
+            }
+        }
+    }
+
+    private fun saveServer(): Boolean {
         val s = a.service
         val typed = url.text.toString().trim()
         if (typed.isNotEmpty()) {
             val norm = RemoteHost.normalize(typed)
-            if (norm == null) return Ui.toast(a, "Adressen måste vara https://…")
+            if (norm == null) {
+                Ui.toast(a, "Adressen måste vara https://…")
+                return false
+            }
             settings.serverUrl = norm
             url.setText(norm)
         }
@@ -118,6 +179,7 @@ class RemoteTab(private val a: MainActivity) {
         }
         s?.settingsChanged()
         Ui.toast(a, "Server sparad")
+        return true
     }
 
     fun render(st: UiState) {

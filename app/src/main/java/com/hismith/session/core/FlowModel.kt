@@ -2,6 +2,7 @@ package com.hismith.session.core
 
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToLong
 
 /** One calibration measurement: running at [speedPct] gave [mlPerSec]. */
@@ -79,9 +80,31 @@ class FlowModel(points: List<CalPoint>, val calibrated: Boolean) {
         return DosePlan(speed, flow, ml, segments)
     }
 
+    /**
+     * A "real" squirt: [pulses] spurts that get smaller (each about 78 % of the one before) with
+     * pauses that get a little longer – instead of one even stream.
+     */
+    fun planPulsed(ml: Double, wantedMlPerSec: Double, maxSpeed: Int, pulses: Int, minSpeed: Int = 5): DosePlan? {
+        if (ml <= 0.0) return null
+        val n = pulses.coerceIn(2, 12)
+        val speed = speedForFlow(wantedMlPerSec, minSpeed, maxSpeed)
+        val flow = flowAt(speed)
+        if (flow <= 0.0) return null
+        val weights = List(n) { PULSE_RATIO.pow(it) }
+        val sum = weights.sum()
+        val segments = weights.map { w ->
+            (ml * w / sum / flow * 1000.0 + rampCompensationMs(speed)).roundToLong().coerceIn(MIN_PULSE_MS, Limits.MAX_SEGMENT_MS)
+        }
+        val pauses = List(n - 1) { i -> 450L + i * 120L }
+        return DosePlan(speed, flow, ml, segments, pauses)
+    }
+
     fun toStorageString(): String = points.joinToString(";") { "${it.speedPct}:${it.mlPerSec}" }
 
     companion object {
+        private const val PULSE_RATIO = 0.78
+        private const val MIN_PULSE_MS = 150L
+
         /** Un-calibrated guess: 500 ml/min pump with gel ≈ 5 ml/s at 100 %. */
         val DEFAULT = FlowModel(listOf(CalPoint(100, 5.0)), calibrated = false)
 
@@ -105,13 +128,16 @@ class FlowModel(points: List<CalPoint>, val calibrated: Boolean) {
     }
 }
 
-/** How a dose is executed: constant [speedPct] for each segment, with pauses in between. */
+/** How a dose is executed: constant [speedPct] for each segment, with [pausesMs] in between. */
 data class DosePlan(
     val speedPct: Int,
     val mlPerSec: Double,
     val ml: Double,
     val segmentsMs: List<Long>,
+    /** Pause after segment i (size = segments - 1). */
+    val pausesMs: List<Long> = List((segmentsMs.size - 1).coerceAtLeast(0)) { Limits.SEGMENT_PAUSE_MS },
 ) {
     val runMs: Long get() = segmentsMs.sum()
-    val totalMs: Long get() = runMs + (segmentsMs.size - 1) * Limits.SEGMENT_PAUSE_MS
+    val totalMs: Long get() = runMs + pausesMs.sum()
+    val pulsed: Boolean get() = segmentsMs.size > 1 && pausesMs.any { it != Limits.SEGMENT_PAUSE_MS }
 }

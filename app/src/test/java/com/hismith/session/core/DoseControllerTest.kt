@@ -151,4 +151,26 @@ class DoseControllerTest {
         assertEquals(100, r.plan.speedPct)
         assertEquals(575L, r.plan.segmentsMs[0]) // 1 ml / 2 ml/s + 75 ms ramp compensation
     }
+
+    @Test
+    fun pulsedFinalPausesBetweenSpurts() {
+        settings = settings.copy(pulsedFinal = true, pulseCount = 5, maxSessionMl = 200.0)
+        val r = ctl.submit(DoseRequest(DoseKind.FINAL, 20.0, Source.AUTO), 0) as DoseResult.Started
+        assertEquals(5, r.plan.segmentsMs.size)
+        assertEquals(r.plan.totalMs, ctl.estimateMs(DoseKind.FINAL, 20.0))
+        var t = 0L
+        var silentTicks = 0
+        while (ctl.isBusy && t < 60_000) {
+            t += 50
+            val before = driver.commands.size
+            ctl.tick(t)
+            if (before == driver.commands.size && ctl.activeInfo(t) != null) silentTicks++
+        }
+        assertTrue(!ctl.isBusy)
+        assertTrue(silentTicks > 20)
+        assertEquals(20.0, ctl.sessionDeliveredMl, 0.6)
+        // SUPER stays one stream unless asked.
+        val sup = ctl.submit(DoseRequest(DoseKind.SUPER, 20.0, Source.LOCAL), t) as DoseResult.Started
+        assertEquals(1, sup.plan.segmentsMs.size)
+    }
 }

@@ -97,34 +97,84 @@
 
             <TextView
                 style="@style/CardTitle"
-                android:text="SERVER" />
+                android:text="SERVER – SÄTT UPP EN GÅNG" />
+
+            <TextView
+                android:id="@+id/rmSetupIntro"
+                style="@style/Muted"
+                android:paddingBottom="6dp"
+                android:text="Länken går via en egen liten server. Den är gratis på Render och tar ett par minuter att sätta upp – helt från mobilen." />
+
+            <Button
+                android:id="@+id/btnRmGenSecret"
+                style="@style/Btn.Outline"
+                android:layout_width="match_parent"
+                android:layout_marginTop="4dp"
+                android:text="1. Skapa och kopiera en hemlighet" />
+
+            <Button
+                android:id="@+id/btnRmOpenRender"
+                style="@style/Btn.Outline"
+                android:layout_width="match_parent"
+                android:text="2. Öppna Render och skapa servern" />
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="6dp"
+                android:text="Logga in med GitHub → klistra in hemligheten i fältet HOST_SECRET → Apply. När tjänsten är grön: kopiera adressen (…onrender.com)." />
 
             <TextView
                 style="@style/Label"
-                android:text="Adress till din relay-server (https)" />
+                android:layout_marginTop="10dp"
+                android:text="3. Klistra in serverns adress"
+                android:textColor="@color/gold_light" />
 
             <EditText
                 android:id="@+id/rmUrl"
                 style="@style/Input.Text"
-                android:hint="https://din-relay.onrender.com"
+                android:hint="https://hismith-relay.onrender.com"
                 android:inputType="textUri" />
 
             <TextView
                 style="@style/Label"
                 android:layout_marginTop="8dp"
-                android:text="Värdhemlighet (HOST_SECRET på servern, valfri)" />
+                android:text="Värdhemlighet (fylls i automatiskt av steg 1)" />
 
-            <EditText
-                android:id="@+id/rmSecret"
-                style="@style/Input.Text"
-                android:hint="Lämna tomt för att behålla"
-                android:inputType="textPassword" />
+            <LinearLayout style="@style/Row">
 
-            <Button
-                android:id="@+id/btnRmSave"
-                style="@style/Btn.Outline"
-                android:layout_width="match_parent"
-                android:text="Spara server" />
+                <EditText
+                    android:id="@+id/rmSecret"
+                    style="@style/Input.Text"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:hint="Lämna tomt för att behålla"
+                    android:inputType="textPassword" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnRmCopySecret"
+                    style="@style/Btn.Dark"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_weight="0"
+                    android:text="Kopiera" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnRmSave"
+                    style="@style/Btn.Gold"
+                    android:text="4. Spara och testa" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/rmTestResult"
+                style="@style/Body"
+                android:paddingTop="8dp"
+                android:visibility="gone" />
 
             <TextView
                 style="@style/Muted"
