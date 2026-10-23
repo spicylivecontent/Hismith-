@@ -4,6 +4,9 @@ import com.hismith.session.core.ActiveDoseInfo
 import com.hismith.session.core.CommandArbiter
 import com.hismith.session.core.DoseKind
 import com.hismith.session.core.SessionMode
+import com.hismith.session.core.SessionRecord
+import com.hismith.session.core.SessionStats
+import com.hismith.session.core.SessionStyle
 import com.hismith.session.core.Source
 import com.hismith.session.remote.RemoteHost
 
@@ -27,6 +30,7 @@ data class SessionUi(
     val finalMl: Double,
     val finalStarted: Boolean,
     val challengeDay: Int?,
+    val style: SessionStyle,
 )
 
 data class LubeUi(
@@ -67,6 +71,9 @@ data class UiState(
     val remote: RemoteUi,
     val events: List<String>,
     val speedHistory: IntArray,
+    val stats: SessionStats,
+    /** Latest sessions first. */
+    val recent: List<SessionRecord>,
 ) {
     val anyMotionConnected: Boolean get() = devices.any { it.role.isMotion && it.connected }
 

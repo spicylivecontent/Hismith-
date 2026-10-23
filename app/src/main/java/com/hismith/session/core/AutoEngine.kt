@@ -74,6 +74,7 @@ class AutoEngine(
 
     private val rng = Random(seed)
     private var intensity = config.intensity.coerceIn(0, 100) / 100.0
+    private var style = config.style
 
     // Engine clock: ms since start, paused time excluded.
     private var startWall = 0L
@@ -117,6 +118,14 @@ class AutoEngine(
     private val micro = config.microDose.sanitized()
     private var nextMicroAt = Long.MAX_VALUE
 
+    /** Cues waiting to be emitted (one per tick): micro at burst start, surprise squirts. */
+    private val pendingCues = ArrayDeque<LubeCue>()
+    private var lastMicroAt = Long.MIN_VALUE / 2
+
+    private val surpriseEnabled = config.surprise != SurpriseLevel.OFF
+    private var nextSurpriseAt = Long.MAX_VALUE
+    private var surpriseLabelUntil = 0L
+
     private val finalEnabled = config.finalEnabled
     private var finalVolumeMl = 0.0
     private var finalPlan: List<Segment> = emptyList()
@@ -139,6 +148,7 @@ class AutoEngine(
             if (hi <= lo) lo else lo + (rng.nextLong(hi - lo + 1) / 1000L) * 1000L
         }
         if (microEnabled) nextMicroAt = uniformMs(micro.intervalMinSec * 1000L, micro.intervalMaxSec * 1000L)
+        if (surpriseEnabled) nextSurpriseAt = nextSurpriseDelay()
         planFinal()
         beginBehavior(Behavior.WARMUP, 0L)
     }
@@ -148,6 +158,33 @@ class AutoEngine(
     }
 
     val intensityPercent: Int get() = (intensity * 100).roundToInt()
+
+    /** Change style live; it applies from the next behaviour. */
+    fun setStyle(value: SessionStyle) {
+        style = value
+    }
+
+    val currentStyle: SessionStyle get() = style
+
+    /**
+     * One-tap action: switch to the matching behaviour right now (ramped as usual).
+     * Ignored before start, while paused and during the final.
+     */
+    fun trigger(action: QuickAction, nowWall: Long): Boolean {
+        if (!started || finished || pausedAt >= 0 || finalStarted) return false
+        val t = clock(nowWall)
+        val b = when (action) {
+            QuickAction.BOOST -> Behavior.BURST
+            QuickAction.WAVE -> Behavior.WAVE
+            QuickAction.EDGE -> Behavior.EDGE
+            QuickAction.REST -> Behavior.HOLD
+        }
+        beginBehavior(b, t)
+        return true
+    }
+
+    private fun nextSurpriseDelay(): Long =
+        uniformMs(config.surprise.minSec * 1000L, config.surprise.maxSec * 1000L)
 
     fun elapsedMs(nowWall: Long): Long = if (!started) 0L else clock(nowWall)
 
@@ -201,6 +238,14 @@ class AutoEngine(
         }
         if (durationMs > 0 && !finalStarted && t >= durationMs - finalLeadMs) startFinal(t)
 
+        if (surpriseEnabled && !finalStarted && t >= nextSurpriseAt) {
+            // Surprise: a sudden burst, together with an EXTRA squirt when lube is allowed.
+            nextSurpriseAt = t + nextSurpriseDelay()
+            surpriseLabelUntil = t + 4_000
+            if (config.mode.lubeAllowed && config.surpriseMl > 0) pendingCues.addFirst(LubeCue(DoseKind.EXTRA, config.surpriseMl))
+            beginBehavior(Behavior.BURST, t, microAllowed = false)
+        }
+
         var guard = 0
         while (t >= segmentEnd && guard++ < 64) {
             if (segments.isEmpty()) {
@@ -242,12 +287,17 @@ class AutoEngine(
         var cue: LubeCue? = null
         if (finalDosePending && finalVolumeMl > 0) {
             finalDosePending = false
+            pendingCues.clear()
             cue = LubeCue(DoseKind.FINAL, finalVolumeMl)
+        } else if (pendingCues.isNotEmpty() && !finalStarted) {
+            cue = pendingCues.removeFirst()
         } else if (microEnabled && !finalStarted && t >= nextMicroAt) {
             nextMicroAt = t + uniformMs(micro.intervalMinSec * 1000L, micro.intervalMaxSec * 1000L)
+            lastMicroAt = t
             cue = LubeCue(DoseKind.MICRO, micro.ml)
         }
-        return frame(speed, cue, false)
+        val label = if (t < surpriseLabelUntil) "Överraskning!" else null
+        return frame(speed, cue, false, labelOverride = label)
     }
 
     private fun frame(speed: Int, cue: LubeCue?, done: Boolean, labelOverride: String? = null) = EngineFrame(
@@ -263,12 +313,12 @@ class AutoEngine(
     // ------------------------------------------------------------------ macro level
 
     private fun baseWeight(b: Behavior): Double = when (b) {
-        Behavior.RHYTHM -> 0.30
-        Behavior.WAVE -> 0.16
-        Behavior.BURST -> 0.15 * (0.6 + 0.8 * intensity)
-        Behavior.HOLD -> if (config.nonstop) 0.0 else 0.12 * (1.25 - 0.6 * intensity)
-        Behavior.TEASE -> 0.13
-        Behavior.EDGE -> 0.11 * (0.5 + intensity)
+        Behavior.RHYTHM -> 0.30 * style.rhythm
+        Behavior.WAVE -> 0.16 * style.wave
+        Behavior.BURST -> 0.15 * (0.6 + 0.8 * intensity) * style.burst
+        Behavior.HOLD -> if (config.nonstop) 0.0 else 0.12 * (1.25 - 0.6 * intensity) * style.hold
+        Behavior.TEASE -> 0.13 * style.tease
+        Behavior.EDGE -> 0.11 * (0.5 + intensity) * style.edge
         else -> 0.0
     }
 
@@ -309,10 +359,18 @@ class AutoEngine(
         return w.keys.last()
     }
 
-    private fun beginBehavior(b: Behavior, at: Long) {
+    private fun beginBehavior(b: Behavior, at: Long, microAllowed: Boolean = true) {
         behavior = b
         if (b != Behavior.WARMUP && b != Behavior.FINAL) {
             lastUsed[b] = sequence.size
+        }
+        // Lube follows the motion: a micro dose as the burst starts, then the timer restarts.
+        if (b == Behavior.BURST && microAllowed && microEnabled && config.microOnBurst &&
+            at - lastMicroAt >= micro.intervalMinSec * 500L
+        ) {
+            pendingCues.addLast(LubeCue(DoseKind.MICRO, micro.ml))
+            lastMicroAt = at
+            nextMicroAt = at + uniformMs(micro.intervalMinSec * 1000L, micro.intervalMaxSec * 1000L)
         }
         sequence += b
         segments.clear()
@@ -337,9 +395,10 @@ class AutoEngine(
         rampFrom = lastBase
         rampTo = s.target.coerceIn(0.0, 100.0)
         rampStart = t0
-        rampMs = s.rampMs.coerceAtLeast(150)
+        val scale = if (behavior == Behavior.FINAL) 1.0 else style.rampScale
+        rampMs = (s.rampMs * scale).toLong().coerceAtLeast(150)
         easing = s.easing
-        sigma = if (rampTo <= 0.5) 0.0 else s.sigma
+        sigma = if (rampTo <= 0.5) 0.0 else s.sigma * (if (behavior == Behavior.FINAL) 1.0 else style.sigmaScale)
         segmentEnd = t0 + rampMs + s.holdMs.coerceAtLeast(0)
         segmentLabel = s.label
         strokeTargetStart = s.strokeStart.coerceIn(0, 85)
@@ -349,7 +408,7 @@ class AutoEngine(
 
     // ------------------------------------------------------------------ meso level
 
-    private fun shift(): Double = (intensity - 0.5) * 24.0
+    private fun shift(): Double = (intensity - 0.5) * 24.0 + style.shift
 
     private fun lvl(lo: Double, hi: Double): Double {
         val v = uniform(lo, hi) + shift()

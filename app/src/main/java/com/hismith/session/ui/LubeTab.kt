@@ -5,6 +5,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 import com.hismith.session.DeviceRole
 import com.hismith.session.MainActivity
@@ -48,6 +49,10 @@ class LubeTab(private val a: MainActivity) {
     private val inMaxPump: EditText = a.findViewById(R.id.inMaxPump)
     private val inMaxSession: EditText = a.findViewById(R.id.inMaxSession)
     private val preview: TextView = a.findViewById(R.id.lubePreview)
+    private val swPulsedFinal: Switch = a.findViewById(R.id.swPulsedFinal)
+    private val swPulsedSuper: Switch = a.findViewById(R.id.swPulsedSuper)
+    private val seekPulses: SeekBar = a.findViewById(R.id.seekPulses)
+    private val valPulses: TextView = a.findViewById(R.id.valPulses)
 
     private val calStatus: TextView = a.findViewById(R.id.calStatus)
     private val seekCalSpeed: SeekBar = a.findViewById(R.id.seekCalSpeed)
@@ -91,6 +96,11 @@ class LubeTab(private val a: MainActivity) {
         btnSuper.setOnClickListener { a.service?.dose(DoseKind.SUPER, null) }
         a.findViewById<Button>(R.id.btnReservoir).setOnClickListener { reservoirDialog() }
         a.findViewById<Button>(R.id.btnSaveLube).setOnClickListener { saveSettings() }
+        swPulsedFinal.setOnCheckedChangeListener { _, c -> settings.lubeSettings = settings.lubeSettings.copy(pulsedFinal = c) }
+        swPulsedSuper.setOnCheckedChangeListener { _, c -> settings.lubeSettings = settings.lubeSettings.copy(pulsedSuper = c) }
+        seekPulses.onChange({ v, _ -> valPulses.text = "${v + 2} st" }, onStop = { v ->
+            settings.lubeSettings = settings.lubeSettings.copy(pulseCount = v + 2)
+        })
 
         seekCalSpeed.onChange({ _, _ -> valCalSpeed.text = "$calSpeed %" })
         seekCalSeconds.onChange({ _, _ -> valCalSeconds.text = "$calSeconds s" })
@@ -155,6 +165,10 @@ class LubeTab(private val a: MainActivity) {
         inFlowStrong.setText(Ui.num(s.flowStrong, 2))
         inMaxPump.setText(s.maxPumpSpeed.toString())
         inMaxSession.setText(Ui.num(s.maxSessionMl, 0))
+        swPulsedFinal.isChecked = s.pulsedFinal
+        swPulsedSuper.isChecked = s.pulsedSuper
+        seekPulses.progress = s.pulseCount - 2
+        valPulses.text = "${s.pulseCount} st"
     }
 
     private fun saveSettings() {
@@ -172,6 +186,9 @@ class LubeTab(private val a: MainActivity) {
             flowStrong = inFlowStrong.doubleOr(old.flowStrong),
             maxPumpSpeed = inMaxPump.intOr(old.maxPumpSpeed),
             maxSessionMl = inMaxSession.doubleOr(old.maxSessionMl),
+            pulsedFinal = swPulsedFinal.isChecked,
+            pulsedSuper = swPulsedSuper.isChecked,
+            pulseCount = seekPulses.progress + 2,
         ).sanitized()
         settings.lubeSettings = new
         loadSettings()
@@ -257,9 +274,12 @@ class LubeTab(private val a: MainActivity) {
             DoseKind.EXTRA to s.extraMl,
             DoseKind.SUPER to s.superMl,
         ).joinToString("\n") { (kind, ml) ->
-            val plan = cal.plan(s.clampMl(kind, ml), s.flowFor(kind), s.maxPumpSpeed)
+            val pulsed = kind == DoseKind.SUPER && s.pulsedSuper
+            val plan = if (pulsed) cal.planPulsed(s.clampMl(kind, ml), s.flowFor(kind), s.maxPumpSpeed, s.pulseCount)
+            else cal.plan(s.clampMl(kind, ml), s.flowFor(kind), s.maxPumpSpeed)
             if (plan == null) "${kind.label}: kan inte planeras"
-            else "${kind.label} ${Ui.ml(plan.ml)} ≈ ${Ui.num(plan.totalMs / 1000.0)} s vid ${plan.speedPct} % (${Ui.num(plan.mlPerSec, 2)} ml/s)"
+            else "${kind.label} ${Ui.ml(plan.ml)} ≈ ${Ui.num(plan.totalMs / 1000.0)} s vid ${plan.speedPct} % (${Ui.num(plan.mlPerSec, 2)} ml/s)" +
+                (if (pulsed) " i ${plan.segmentsMs.size} stötar" else "")
         }
     }
 }

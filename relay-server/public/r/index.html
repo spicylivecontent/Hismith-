@@ -57,6 +57,15 @@
       </div>
 
       <div id="auto" class="card hidden">
+        <label class="label" for="style">Stil</label>
+        <select id="style">
+          <option value="BALANCED">Balanserad – lite av allt</option>
+          <option value="SENSUAL">Sensuell – långa vågor, mjukt</option>
+          <option value="INTENSE">Intensiv – mer tempo och burst</option>
+          <option value="EDGING">Edging – upp mot kanten och stopp</option>
+          <option value="TEASE">Tease – retas grunt och djupt</option>
+          <option value="RHYTHMIC">Rytmisk – jämn takt</option>
+        </select>
         <div class="row2">
           <label class="label">Minst (min)<input id="autoMin" type="number" min="1" max="240" value="15"></label>
           <label class="label">Högst (min)<input id="autoMax" type="number" min="0" max="240" value="25"></label>
@@ -64,6 +73,12 @@
         <label class="label" for="intensity">Intensitet <b id="intensityVal">50 %</b></label>
         <input id="intensity" type="range" min="0" max="100" value="50">
         <button id="autoStart" class="btn gold" type="button">Starta automatik</button>
+        <div id="quickRow" class="quick quick4">
+          <button class="btn dark" data-action="boost" type="button">⚡ Boost</button>
+          <button class="btn dark" data-action="wave" type="button">〰 Våg</button>
+          <button class="btn dark" data-action="edge" type="button">🎯 Edge</button>
+          <button class="btn dark" data-action="rest" type="button">💤 Vila</button>
+        </div>
         <div class="row2">
           <button id="finalNow" class="btn outline" type="button">Final nu</button>
           <button id="autoEnd" class="btn dark" type="button">Avsluta</button>

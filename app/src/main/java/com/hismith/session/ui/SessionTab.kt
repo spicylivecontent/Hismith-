@@ -16,8 +16,13 @@ import com.hismith.session.R
 import com.hismith.session.UiState
 import com.hismith.session.core.CommandArbiter
 import com.hismith.session.core.DoseKind
+import com.hismith.session.core.QuickAction
 import com.hismith.session.core.SessionMode
+import com.hismith.session.core.SessionStyle
 import com.hismith.session.core.Source
+import com.hismith.session.core.SurpriseLevel
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /** Session tab: live view, devices, mode, automatic session, manual control and limits. */
 class SessionTab(private val a: MainActivity) {
@@ -72,7 +77,34 @@ class SessionTab(private val a: MainActivity) {
     private val valMaxAnal: TextView = a.findViewById(R.id.valMaxAnal)
     private val valMaxPocket: TextView = a.findViewById(R.id.valMaxPocket)
     private val swAutoReconnect: Switch = a.findViewById(R.id.swAutoReconnect)
+    private val swDiscreet: Switch = a.findViewById(R.id.swDiscreet)
+    private val swMicroOnBurst: Switch = a.findViewById(R.id.swMicroOnBurst)
     private val eventsText: TextView = a.findViewById(R.id.eventsText)
+
+    private val quickButtons = mapOf(
+        QuickAction.BOOST to a.findViewById<Button>(R.id.btnBoost),
+        QuickAction.WAVE to a.findViewById<Button>(R.id.btnWave),
+        QuickAction.EDGE to a.findViewById<Button>(R.id.btnEdge),
+        QuickAction.REST to a.findViewById<Button>(R.id.btnRest),
+    )
+    private val styleViews: Map<SessionStyle, TextView> = mapOf(
+        SessionStyle.BALANCED to a.findViewById(R.id.styleBALANCED),
+        SessionStyle.SENSUAL to a.findViewById(R.id.styleSENSUAL),
+        SessionStyle.INTENSE to a.findViewById(R.id.styleINTENSE),
+        SessionStyle.EDGING to a.findViewById(R.id.styleEDGING),
+        SessionStyle.TEASE to a.findViewById(R.id.styleTEASE),
+        SessionStyle.RHYTHMIC to a.findViewById(R.id.styleRHYTHMIC),
+    )
+    private val styleHint: TextView = a.findViewById(R.id.styleHint)
+    private val surpriseViews = mapOf(
+        SurpriseLevel.OFF to a.findViewById<TextView>(R.id.surpriseOFF),
+        SurpriseLevel.SOMETIMES to a.findViewById<TextView>(R.id.surpriseSOMETIMES),
+        SurpriseLevel.OFTEN to a.findViewById<TextView>(R.id.surpriseOFTEN),
+    )
+    private val statsText: TextView = a.findViewById(R.id.statsText)
+    private val recentText: TextView = a.findViewById(R.id.recentText)
+    private var lastStatsKey = ""
+    private val dateFmt = SimpleDateFormat("d MMM HH:mm", Ui.SV)
 
     private var lastDeviceKey = ""
     private var draggingManual = false
@@ -98,6 +130,32 @@ class SessionTab(private val a: MainActivity) {
         swSmartStroke.setOnCheckedChangeListener { _, c -> settings.smartStroke = c }
         swNonstop.setOnCheckedChangeListener { _, c -> settings.nonstop = c }
         swAutoReconnect.setOnCheckedChangeListener { _, c -> settings.autoReconnect = c }
+        swMicroOnBurst.setOnCheckedChangeListener { _, c -> settings.microOnBurst = c }
+        swDiscreet.setOnCheckedChangeListener { _, c ->
+            settings.discreet = c
+            a.applyDiscreet()
+        }
+        quickButtons.forEach { (action, b) -> b.setOnClickListener { a.service?.quickAction(action) } }
+        styleViews.forEach { (st, v) ->
+            v.setOnClickListener {
+                a.service?.setStyle(st) ?: run { settings.style = st }
+                showStyle(st)
+            }
+        }
+        surpriseViews.forEach { (lvl, v) ->
+            v.setOnClickListener {
+                settings.surprise = lvl
+                showSurprise(lvl)
+            }
+        }
+        a.findViewById<Button>(R.id.btnClearStats).setOnClickListener {
+            Ui.dialog(a)
+                .setTitle("Rensa statistiken?")
+                .setMessage("All sparad passhistorik på telefonen tas bort.")
+                .setPositiveButton("Rensa") { _, _ -> a.service?.clearHistory() }
+                .setNegativeButton("Avbryt", null)
+                .show()
+        }
 
         btnStart.setOnClickListener {
             saveTimes()
@@ -180,7 +238,25 @@ class SessionTab(private val a: MainActivity) {
         swSmartStroke.isChecked = settings.smartStroke
         swNonstop.isChecked = settings.nonstop
         swAutoReconnect.isChecked = settings.autoReconnect
+        swDiscreet.isChecked = settings.discreet
+        swMicroOnBurst.isChecked = settings.microOnBurst
         showMode(settings.mode)
+        showStyle(settings.style)
+        showSurprise(settings.surprise)
+    }
+
+    private fun select(v: TextView, on: Boolean) {
+        v.isSelected = on
+        v.setTextColor(a.getColor(if (on) R.color.gold_pale else R.color.muted))
+    }
+
+    private fun showStyle(style: SessionStyle) {
+        styleViews.forEach { (st, v) -> select(v, st == style) }
+        styleHint.text = style.hint
+    }
+
+    private fun showSurprise(level: SurpriseLevel) {
+        surpriseViews.forEach { (l, v) -> select(v, l == level) }
     }
 
     fun saveTimes() {
@@ -229,6 +305,9 @@ class SessionTab(private val a: MainActivity) {
         progress.progress = (s.progress * 1000).toInt()
 
         val active = s.running || manual
+        val canAct = s.running && !s.paused && !s.finalStarted
+        quickButtons.values.forEach { Ui.setEnabled(it, canAct) }
+        if (s.running) showStyle(s.style)
         btnPause.text = if (s.paused) "Fortsätt" else "Pausa"
         Ui.setEnabled(btnPause, active)
         Ui.setEnabled(btnFinalNow, s.running && !s.finalStarted && !s.paused)
@@ -268,6 +347,30 @@ class SessionTab(private val a: MainActivity) {
         }
 
         eventsText.text = if (st.events.isEmpty()) "Inga händelser än" else st.events.take(14).joinToString("\n")
+        renderStats(st)
+    }
+
+    private fun renderStats(st: UiState) {
+        val key = "${st.stats.sessions}:${st.stats.streakDays}:${st.recent.firstOrNull()?.startedAt}"
+        if (key == lastStatsKey) return
+        lastStatsKey = key
+        val x = st.stats
+        statsText.text = if (x.sessions == 0) {
+            "Inga pass än. Statistiken fylls på efter varje pass (bara på telefonen)."
+        } else buildString {
+            append("${x.sessions} pass · ${x.totalMinutes} min totalt · ${Ui.ml(x.totalMl)} lube\n")
+            append("Längsta ${x.longestMinutes} min · snitt ${x.averageMinutes} min · ${x.completed} hela pass\n")
+            append("🔥 ${x.streakDays} dagar i rad (rekord ${x.bestStreakDays}) · ${x.thisWeek} pass senaste veckan")
+            x.favoriteStyle?.let { append("\nFavoritstil: ${it.label}") }
+        }
+        recentText.text = st.recent.joinToString("\n") { r ->
+            val flags = buildString {
+                if (!r.completed) append(" · avbrutet")
+                if (r.surprises > 0) append(" · ${r.surprises}× överraskning")
+                if (r.boosts > 0) append(" · ${r.boosts}× boost")
+            }
+            "${dateFmt.format(Date(r.startedAt))}  ${r.durationSec / 60} min · ${r.mode.label} · ${r.style.label} · ${Ui.ml(r.lubeMl)}$flags"
+        }
     }
 
     private fun renderDevices(st: UiState) {

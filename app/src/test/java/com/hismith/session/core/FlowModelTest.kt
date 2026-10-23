@@ -69,4 +69,17 @@ class FlowModelTest {
         assertEquals(1, m.points.size)
         assertEquals(3.0, m.flowAt(50), 1e-9)
     }
+
+    @Test
+    fun pulsedPlanShrinksSpurtsAndGrowsPauses() {
+        val plan = model.planPulsed(ml = 30.0, wantedMlPerSec = 6.0, maxSpeed = 100, pulses = 6)!!
+        assertEquals(6, plan.segmentsMs.size)
+        assertEquals(5, plan.pausesMs.size)
+        assertTrue(plan.segmentsMs.zipWithNext().all { (a, b) -> b <= a })
+        assertTrue(plan.pausesMs.zipWithNext().all { (a, b) -> b > a })
+        assertTrue(plan.pulsed)
+        // Delivered volume (run time minus ramp compensation) matches the request.
+        val ml = plan.segmentsMs.sumOf { (it - FlowModel.rampCompensationMs(plan.speedPct)) / 1000.0 * plan.mlPerSec }
+        assertEquals(30.0, ml, 0.2)
+    }
 }

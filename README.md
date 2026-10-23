@@ -1,4 +1,4 @@
-# Hismith Smart Session 2.0
+# Hismith Smart Session 2.1
 
 Android-app (Kotlin, minSdk 26) som styr Hismith-maskiner och Thrusting Pocket över Bluetooth LE
 och den egenbyggda **MegaLube**-launchern (ESP32 + DRV8871) över klassisk Bluetooth.
@@ -20,9 +20,9 @@ automatiken, telefonen, en utmaning eller någon med engångslänken.
 
 | Vad | Var |
 |-----|-----|
-| **App (APK)** | Releases → *Hismith Session v2.0.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
-| **MegaLube-firmware (.bin)** | Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** (eller Actions → *Build MegaLube firmware* → Artifacts) |
-| **Relay-servern** | `relay-server/` – se [relay-server/README.md](relay-server/README.md) |
+| **App (APK)** | Releases → *Hismith Session v2.1.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
+| **MegaLube-firmware (.bin)** | Repot [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube) → Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** |
+| **Relay-servern** (för engångslänkar) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/spicylivecontent/Hismith-) – eller se [relay-server/README.md](relay-server/README.md) |
 
 Installera APK:n: öppna filen i telefonen → tillåt *Installera från okänd källa* → Installera.
 Uppdateringar installeras rakt över den gamla versionen.
@@ -30,7 +30,8 @@ Uppdateringar installeras rakt över den gamla versionen.
 ## Flikarna
 
 ### ◉ Session
-- **Live:** tid, kvar, hastighet, fas och en graf över de senaste två minuterna. *Pausa/Fortsätt*,
+- **Live:** tid, kvar, hastighet, fas och en graf över de senaste två minuterna. Snabbknapparna
+  **⚡ Boost**, **〰 Våg**, **🎯 Edge** och **💤 Vila** byter beteende direkt. *Pausa/Fortsätt*,
   *Final nu*, *Avsluta*, samt **EXTRA** och **SUPER SPRUT**.
 - **Enheter:** *+ Maskin / Pocket* söker via BLE. *+ Simulator* lägger till en låtsasmaskin så att du
   kan prova allt utan hårdvara. Enheter sparas och återansluts vid start (kan stängas av).
@@ -38,6 +39,13 @@ Uppdateringar installeras rakt över den gamla versionen.
   **Pocket nekar all lube**, även från länken.
 - **Automatisk session:** min/max-tid, intensitet, mikrodoser, final med sprut, smart slaglängd,
   nonstop.
+- **Stil** (går att byta mitt i passet): *Balanserad*, *Sensuell* (långa vågor, mjukt), *Intensiv*
+  (mer burst), *Edging* (upp mot kanten och stopp, om och om igen), *Tease* och *Rytmisk*.
+- **Överraskningar** (*av / ibland / ofta*): en plötslig burst tillsammans med ett EXTRA SPRUT.
+- **Mikrodos när en burst drar igång** – lubet följer rörelsen i stället för bara en timer.
+- **Statistik:** antal pass, total tid och lube, längsta pass, dagar i rad (🔥), favoritstil och de
+  senaste passen. Sparas bara på telefonen.
+- **Diskret läge:** appen döljs i *senaste appar* och skärmdumpar blockeras.
 - **Manuell styrning:** hastighetsreglage (glider mjukt, max 60 %/s) och slaglängd.
 - **Maxhastighet per läge:** automatiken skalas in under taket, manuell styrning och länken kan
   aldrig gå över.
@@ -49,6 +57,8 @@ Uppdateringar installeras rakt över den gamla versionen.
   total för sessionen och hur mycket som är kvar i dunken.
 - **Volymer och flöde:** EXTRA (start 15 ml), SUPER (start 50 ml), final min–max (15–50 ml),
   mikrodos Oral/Anal (ml + intervall), önskat flöde per typ, max pumphastighet och max per session.
+- **Sprutet:** finalen (och valfritt SUPER) kan komma som **pulserande stötar** – 2–12 stötar som
+  blir mindre och mindre med lite längre pauser emellan, som ett riktigt sprut. Samma totala volym.
 - **Kalibrering:** kör pumpen X % i Y sekunder, mät i måttglas, spara. Flera punkter (t.ex. 20, 50,
   100 %) ger en flödeskurva. Utan kalibrering är doserna uppskattningar (5 ml/s vid 100 %).
 - **Underhåll:** fyll slangen, töm slangen bakåt (max 60 %).
@@ -61,15 +71,21 @@ resten av schemat*, *lämna kalendern oförändrad*), paus och valfri daglig på
 ett vanligt automatiskt pass – utmaningen pratar aldrig själv med Bluetooth, och STOPP fungerar alltid.
 
 ### ⇄ Länk
-Engångslänk så att någon annan kan styra från sin webbläsare. Kräver en egen liten relay-server
-(gratis på Render.com, se [relay-server/README.md](relay-server/README.md)).
+Engångslänk så att någon annan kan styra från sin webbläsare. Kräver en egen liten relay-server –
+gratis på Render och uppsatt på ett par minuter, helt från mobilen. Fliken guidar dig:
 
-1. Fyll i serveradressen (och värdhemligheten om du satt en) → *Spara server*.
-2. *Skapa länk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
-3. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
-4. Mottagaren kan styra manuellt eller starta automatik, pausa, trycka STOPP och – om du tillåter
-   det – EXTRA/SUPER. Allt inom dina gränser.
-5. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
+1. **Skapa och kopiera en hemlighet** (sparas krypterad i telefonen).
+2. **Öppna Render** → logga in med GitHub → klistra in hemligheten i `HOST_SECRET` → *Apply*.
+3. Kopiera serverns adress (`https://…onrender.com`) och klistra in den i appen.
+4. **Spara och testa** – appen väcker servern och kontrollerar att allt stämmer.
+
+Sedan:
+
+1. *Skapa länk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
+2. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
+3. Mottagaren kan styra manuellt eller starta automatik (med stil), trycka ⚡ Boost / 〰 Våg /
+   🎯 Edge / 💤 Vila, pausa, trycka STOPP och – om du tillåter det – EXTRA/SUPER. Allt inom dina gränser.
+4. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
    Inget startar om av sig självt.
 
 ### ☰ Recept
@@ -81,6 +97,15 @@ under. **Inte för vaginal användning.**
 ### Webbläsare
 Knappen *Webbläsare* i sidhuvudet. Snabblänkar, adblock med navigeringsskydd, helskärmsvideo och
 flyttbara overlay-knappar (**STOPP**, **SUPER SPRUT**, **Meny**) som syns så länge något kan röra sig.
+
+- **Minipanel** (flyttbar i ⋮⋮): hastighet, −/+ (intensitet eller manuell hastighet), ⚡ 🎯 💤,
+  💧 EXTRA och ⏸ – styr passet utan att lämna videon.
+- **☆ Favoriter:** spara sidan som snabblänk. Långtryck på en snabblänk för att ta bort/dölja den.
+- **⋯-menyn:**
+  - **Videosynk** – pausar du videon pausas passet, spelar du igen fortsätter det.
+  - **Final när videon tar slut.**
+  - **Privat läge** – historik, cookies och webbdata rensas när appen stängs.
+  - Rensa webbdata nu, visa dolda snabblänkar.
 
 ## Sessionsmotorn
 
@@ -120,21 +145,24 @@ En mikrodos avbryter eller staplas aldrig ovanpå en större dos. Totalvolymen p
 - MegaLube-firmwaren stoppar själv vid länkbortfall, utebliven trafik (1 s), utgången lease och efter
   120 s sammanhängande körning.
 - Pocket-läge nekar all lube. Länken kan aldrig gå över telefonens gränser.
-- Relay-servern sparar bara hashar av engångstokens och vet ingenting om maskiner eller lube.
+- Relay-servern sparar bara hashar av engångstokens. Mottagaren (och därmed servern) får bara det
+  som behövs för att styra – aldrig läge, ml-mängder, enhetsnamn eller historik.
+
+Hela hotmodellen (vad som skyddas, mot vem, hur och vad som lämnas utanför) finns i
+[docs/HOTMODELL.md](docs/HOTMODELL.md).
 
 ## MegaLube
 
-Firmware och bygge ligger i [`firmware/megalube/`](firmware/megalube/README.md) (oförändrad
-firmware från MegaLube-paketet + värdtest + CI som bygger `.bin`). Mappen är fristående och kan
-flyttas till ett eget repo – den har en egen workflow. Hårdvara, inköp och kopplingsschema finns i
-Mega-Lube-dokumentet.
+Firmware, värdtest, bygget av `.bin` och Mega-Lube-dokumentet (inköp, kopplingsschema, recept)
+ligger i ett eget repo: [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube).
+Firmwaren är oförändrad från MegaLube-paketet.
 
 ## Bygga själv
 
 ```bash
-./gradlew testDebugUnitTest            # 59 enhetstester för motor, doser, säkerhet, länk, utmaning, recept
+./gradlew testDebugUnitTest            # 71 enhetstester för motor, doser, säkerhet, länk, utmaning, recept, statistik
 ./gradlew assembleDebug assembleRelease
-cd relay-server && npm ci && npm test  # 12 integrationstester för relay-servern
+cd relay-server && npm ci && npm test  # 13 integrationstester för relay-servern
 ```
 
 Kräver JDK 17 och Android SDK 35. Appen har bara ett externt beroende (OkHttp för länken).
@@ -164,7 +192,6 @@ app/src/main/java/com/hismith/session/
 ├── ui/                    Flikarna och egna vyer
 ├── SessionService.kt      Foreground service med styrloop
 └── MainActivity.kt        Flikar, webbläsare, overlay-knappar
-firmware/megalube/         ESP32-firmware + CI för .bin
 relay-server/              Miniservern för engångslänken
 ```
 
@@ -172,7 +199,7 @@ relay-server/              Miniservern för engångslänken
 
 - Hismith BLE: service `FFE5`, skriv `FFE9`. Hastighet `AA 04 <0–100> <sum>` och `FF 03 …`,
   slaglängd `FF 06/07/08` och `CC 07/08/09`. Original-launchern: `CC 0B 01 0C` var 280 ms.
-- MegaLube SPP: se [firmware/megalube/README.md](firmware/megalube/README.md).
+- MegaLube SPP: se [MegaLube-repots README](https://github.com/spicylivecontent/MegaLube#protokoll).
 - Länken: se [relay-server/README.md](relay-server/README.md).
 
 ## Öppna frågor (TBD)

@@ -3,6 +3,7 @@ package com.hismith.session
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
@@ -37,8 +38,10 @@ import android.widget.TextView
 import android.widget.Toast
 import com.hismith.session.core.CommandArbiter
 import com.hismith.session.core.DoseKind
+import com.hismith.session.core.QuickAction
 import com.hismith.session.core.Source
 import com.hismith.session.remote.RemoteHost
+import com.hismith.session.ui.BrowserExtras
 import com.hismith.session.ui.ChallengeTab
 import com.hismith.session.ui.DevicePicker
 import com.hismith.session.ui.LubeTab
@@ -113,6 +116,10 @@ class MainActivity : Activity() {
     private lateinit var btnOverlayStop: Button
     private lateinit var btnOverlayMega: Button
     private lateinit var btnOverlayBarToggle: Button
+    private lateinit var miniPanel: View
+    private lateinit var miniSpeed: TextView
+    private lateinit var miniPause: Button
+    private lateinit var browserExtras: BrowserExtras
 
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -207,8 +214,12 @@ class MainActivity : Activity() {
         setupTabs()
         setupHeader()
         setupWebView()
-        setupQuickLinks()
+        browserExtras = BrowserExtras(
+            this, webView, findViewById(R.id.quickLinksRow), findViewById(R.id.btnFavorite),
+            findViewById(R.id.btnBrowserMenu),
+        ) { loadUrlFromUser(it) }
         setupBrowserClicks()
+        setupMiniPanel()
         setupDraggableOverlays()
         applyCutoutInsets()
 
@@ -231,6 +242,8 @@ class MainActivity : Activity() {
         super.onResume()
         resumed = true
         setImmersiveMode()
+        applyDiscreet()
+        browserExtras.startVideoPoll()
         challengeTab.refresh()
         state?.let { onState(it) }
     }
@@ -239,7 +252,8 @@ class MainActivity : Activity() {
         super.onPause()
         resumed = false
         sessionTab.saveTimes()
-        webView.url?.let { settings.prefs.edit().putString("last_url", it).apply() }
+        browserExtras.stopVideoPoll()
+        if (!settings.privateBrowsing) webView.url?.let { settings.prefs.edit().putString("last_url", it).apply() }
     }
 
     override fun onDestroy() {
@@ -251,6 +265,7 @@ class MainActivity : Activity() {
             bound = false
         }
         service = null
+        if (settings.privateBrowsing) browserExtras.clearBrowsingData()
         try {
             webView.stopLoading()
             (webView.parent as? ViewGroup)?.removeView(webView)
@@ -335,6 +350,47 @@ class MainActivity : Activity() {
         btnOverlayStop = findViewById(R.id.btnOverlayStop)
         btnOverlayMega = findViewById(R.id.btnOverlayMega)
         btnOverlayBarToggle = findViewById(R.id.btnOverlayBarToggle)
+        miniPanel = findViewById(R.id.miniPanel)
+        miniSpeed = findViewById(R.id.miniSpeed)
+        miniPause = findViewById(R.id.miniPause)
+    }
+
+    /** "Diskret läge": hidden in recent apps and no screenshots. */
+    fun applyDiscreet() {
+        if (settings.discreet) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        try {
+            getSystemService(ActivityManager::class.java)?.appTasks?.forEach { it.setExcludeFromRecents(settings.discreet) }
+        } catch (_: Exception) {}
+    }
+
+    fun isBrowserVisible(): Boolean = ::browserPanel.isInitialized && browserPanel.visibility == View.VISIBLE
+
+    fun refreshOverlaysFromExtras() = refreshOverlays()
+
+    /** Floating mini control in the browser: speed, intensity/speed ±, quick actions, lube, pause. */
+    private fun setupMiniPanel() {
+        fun step(delta: Int) {
+            val st = state ?: return
+            when {
+                st.session.running -> service?.setIntensity((st.session.intensity + delta).coerceIn(0, 100))
+                st.control == CommandArbiter.Control.MANUAL && st.owner == Source.LOCAL ->
+                    service?.manualSpeed((st.manualTarget + delta).coerceIn(0, 100))
+            }
+        }
+        findViewById<Button>(R.id.miniMinus).setOnClickListener { step(-10) }
+        findViewById<Button>(R.id.miniPlus).setOnClickListener { step(10) }
+        findViewById<Button>(R.id.miniBoost).setOnClickListener { service?.quickAction(QuickAction.BOOST) }
+        findViewById<Button>(R.id.miniEdge).setOnClickListener { service?.quickAction(QuickAction.EDGE) }
+        findViewById<Button>(R.id.miniRest).setOnClickListener { service?.quickAction(QuickAction.REST) }
+        findViewById<Button>(R.id.miniExtra).setOnClickListener {
+            service?.dose(DoseKind.EXTRA, null)
+            Toast.makeText(this, "EXTRA SPRUT", Toast.LENGTH_SHORT).show()
+        }
+        miniPause.setOnClickListener {
+            val st = state ?: return@setOnClickListener
+            if (st.session.paused) service?.resumeSession() else service?.pauseSession()
+        }
     }
 
     private fun setupTabs() {
@@ -368,7 +424,7 @@ class MainActivity : Activity() {
         if (!::sessionTab.isInitialized) return
         val machines = st.devices.count { it.role.isMotion && it.connected }
         headerStatus.text = buildString {
-            append("v2.0 · $machines maskin${if (machines == 1) "" else "er"}")
+            append("v2.1 · $machines maskin${if (machines == 1) "" else "er"}")
             append(if (st.lube.connected) " · lube ✓" else " · ingen lube")
             if (st.remote.status != RemoteHost.Status.OFF) append(" · länk: ${if (st.remote.controllerActive) "aktiv" else "på"}")
             append(" · ${st.mode.label}")
@@ -377,6 +433,8 @@ class MainActivity : Activity() {
         stoppedBanner.visibility = if (st.safety == CommandArbiter.Safety.STOPPED) View.VISIBLE else View.GONE
         if (st.safety == CommandArbiter.Safety.STOPPED) stoppedBanner.text = "STOPPAD (${st.safetyReason}) – tryck för att kvittera"
         browserSpeed.text = if (st.session.running || st.control != CommandArbiter.Control.NONE) "${st.speed} %" else ""
+        miniSpeed.text = "${st.speed} %"
+        miniPause.text = if (st.session.paused) "▶" else "⏸"
         refreshOverlays()
         renderTab(st)
         handleApproval(st)
@@ -440,29 +498,17 @@ class MainActivity : Activity() {
         }
         webView.setDownloadListener { _, _, _, mimeType, _ -> showBlockedToast("Nedladdning blockerad ($mimeType)") }
         webView.webViewClient = AdBlockWebViewClient(
-            onPageStarted = { url -> runOnUiThread { urlBar.setText(url ?: "") } },
+            onPageStarted = { url ->
+                runOnUiThread {
+                    urlBar.setText(url ?: "")
+                    if (::browserExtras.isInitialized) browserExtras.onPageStarted(url)
+                }
+            },
             onBlocked = { reason -> runOnUiThread { showBlockedToast("Blockerade: $reason") } },
             hasRecentUserTouch = { SystemClock.uptimeMillis() - lastUserTouchMs < USER_TOUCH_WINDOW_MS },
         )
         webView.webChromeClient = chromeClient
-        webView.loadUrl(settings.prefs.getString("last_url", HOME_URL) ?: HOME_URL)
-    }
-
-    private fun setupQuickLinks() {
-        val row = findViewById<LinearLayout>(R.id.quickLinksRow)
-        QUICK_LINKS.forEach { (label, url) ->
-            val b = Button(this, null, 0, R.style.Btn_Outline).apply {
-                text = label
-                textSize = 12f
-                minWidth = 0
-                minimumWidth = 0
-                minHeight = 0
-                minimumHeight = 0
-                setPadding(Ui.dp(this@MainActivity, 12), 0, Ui.dp(this@MainActivity, 12), 0)
-                setOnClickListener { loadUrlFromUser(url) }
-            }
-            row.addView(b, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, Ui.dp(this, 30)).apply { marginEnd = Ui.dp(this@MainActivity, 6) })
-        }
+        webView.loadUrl(if (settings.privateBrowsing) HOME_URL else settings.prefs.getString("last_url", HOME_URL) ?: HOME_URL)
     }
 
     private fun setupBrowserClicks() {
@@ -518,7 +564,7 @@ class MainActivity : Activity() {
         urlBar.setText(url)
         urlBar.clearFocus()
         webView.loadUrl(url)
-        settings.prefs.edit().putString("last_url", url).apply()
+        if (!settings.privateBrowsing) settings.prefs.edit().putString("last_url", url).apply()
     }
 
     private fun showControlMode() {
@@ -555,10 +601,16 @@ class MainActivity : Activity() {
         val stopVis = if (st?.stopRelevant == true && overlayButtonsRequested) View.VISIBLE else View.GONE
         val megaVis = if (stopVis == View.VISIBLE && st?.lube?.connected == true && st.mode.lubeAllowed) View.VISIBLE else View.GONE
         val menuVis = if (overlayButtonsRequested && overlayMenuToggleRequested) View.VISIBLE else View.GONE
-        if (btnOverlayStop.visibility == stopVis && btnOverlayMega.visibility == megaVis && btnOverlayBarToggle.visibility == menuVis) return
+        val steering = st != null && (st.session.running || (st.control == CommandArbiter.Control.MANUAL && st.owner == Source.LOCAL))
+        val miniVis = if (overlayButtonsRequested && settings.miniPanel && steering) View.VISIBLE else View.GONE
+        if (btnOverlayStop.visibility == stopVis && btnOverlayMega.visibility == megaVis &&
+            btnOverlayBarToggle.visibility == menuVis && miniPanel.visibility == miniVis
+        ) return
         btnOverlayStop.visibility = stopVis
         btnOverlayMega.visibility = megaVis
         btnOverlayBarToggle.visibility = menuVis
+        miniPanel.visibility = miniVis
+        if (miniVis == View.VISIBLE) miniPanel.bringToFront()
         if (stopVis == View.VISIBLE) btnOverlayStop.bringToFront()
         if (megaVis == View.VISIBLE) btnOverlayMega.bringToFront()
         if (menuVis == View.VISIBLE) btnOverlayBarToggle.bringToFront()
@@ -573,18 +625,21 @@ class MainActivity : Activity() {
         makeDraggable(btnOverlayStop, "overlay_stop")
         makeDraggable(btnOverlayMega, "overlay_mega")
         makeDraggable(btnOverlayBarToggle, "overlay_menu")
+        makeDraggable(findViewById(R.id.miniHandle), "overlay_mini", target = miniPanel)
         rootContainer.post { restoreOverlayPositions() }
     }
 
+    /** Drag [target] by touching [view] (its handle); a tap on [view] is still a click. */
     @SuppressLint("ClickableViewAccessibility")
-    private fun makeDraggable(view: View, key: String) {
+    private fun makeDraggable(view: View, key: String, target: View = view) {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         var downX = 0f
         var downY = 0f
         var startX = 0f
         var startY = 0f
         var dragging = false
-        view.setOnTouchListener { v, e ->
+        view.setOnTouchListener { handle, e ->
+            val v = target
             val parent = v.parent as? View ?: return@setOnTouchListener false
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -602,7 +657,7 @@ class MainActivity : Activity() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!dragging) {
-                        v.performClick()
+                        handle.performClick()
                     } else {
                         val maxX = (parent.width - v.width).coerceAtLeast(1).toFloat()
                         val maxY = (parent.height - v.height).coerceAtLeast(1).toFloat()
@@ -623,6 +678,7 @@ class MainActivity : Activity() {
         place(btnOverlayStop, "overlay_stop")
         place(btnOverlayMega, "overlay_mega")
         place(btnOverlayBarToggle, "overlay_menu")
+        place(miniPanel, "overlay_mini")
     }
 
     private fun place(view: View, key: String) {

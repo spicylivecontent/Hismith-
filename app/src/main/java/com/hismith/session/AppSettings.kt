@@ -9,8 +9,15 @@ import com.hismith.session.core.MicroDoseSettings
 import com.hismith.session.core.MotionHistory
 import com.hismith.session.core.MotionLimits
 import com.hismith.session.core.SessionMode
+import com.hismith.session.core.SessionRecord
+import com.hismith.session.core.SessionStats
+import com.hismith.session.core.SessionStyle
+import com.hismith.session.core.SurpriseLevel
 import org.json.JSONArray
 import org.json.JSONObject
+
+/** A quick link in the browser (user favourite or built-in). */
+data class QuickLink(val label: String, val url: String)
 
 /** A device the app connects to again automatically. */
 data class SavedDevice(val address: String, val name: String, val role: DeviceRole, val kind: DeviceKind)
@@ -65,6 +72,67 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("auto_reconnect", true)
         set(v) = prefs.edit().putBoolean("auto_reconnect", v).apply()
 
+    var style: SessionStyle
+        get() = SessionStyle.parse(prefs.getString("style", null)) ?: SessionStyle.BALANCED
+        set(v) = prefs.edit().putString("style", v.name).apply()
+
+    var surprise: SurpriseLevel
+        get() = SurpriseLevel.parse(prefs.getString("surprise", null)) ?: SurpriseLevel.OFF
+        set(v) = prefs.edit().putString("surprise", v.name).apply()
+
+    var microOnBurst: Boolean
+        get() = prefs.getBoolean("micro_on_burst", true)
+        set(v) = prefs.edit().putBoolean("micro_on_burst", v).apply()
+
+    /** Hide the app in the recent-apps view and block screenshots. */
+    var discreet: Boolean
+        get() = prefs.getBoolean("discreet", false)
+        set(v) = prefs.edit().putBoolean("discreet", v).apply()
+
+    // ------------------------------------------------------------------ browser
+
+    /** Pause the session when the video pauses, continue when it plays again. */
+    var videoSync: Boolean
+        get() = prefs.getBoolean("video_sync", false)
+        set(v) = prefs.edit().putBoolean("video_sync", v).apply()
+
+    /** Start the final when the video ends. */
+    var videoEndFinal: Boolean
+        get() = prefs.getBoolean("video_end_final", false)
+        set(v) = prefs.edit().putBoolean("video_end_final", v).apply()
+
+    var miniPanel: Boolean
+        get() = prefs.getBoolean("mini_panel", true)
+        set(v) = prefs.edit().putBoolean("mini_panel", v).apply()
+
+    /** Clear history, cookies and site data when the app is closed. */
+    var privateBrowsing: Boolean
+        get() = prefs.getBoolean("private_browsing", false)
+        set(v) = prefs.edit().putBoolean("private_browsing", v).apply()
+
+    var favorites: List<QuickLink>
+        get() = parseLinks(prefs.getString("favorites", null))
+        set(v) = prefs.edit().putString("favorites", JSONArray().apply {
+            v.forEach { put(JSONObject().put("l", it.label).put("u", it.url)) }
+        }.toString()).apply()
+
+    var hiddenQuickLinks: Set<String>
+        get() = prefs.getStringSet("hidden_links", emptySet())?.toSet() ?: emptySet()
+        set(v) = prefs.edit().putStringSet("hidden_links", v).apply()
+
+    private fun parseLinks(raw: String?): List<QuickLink> = try {
+        val arr = JSONArray(raw ?: "[]")
+        (0 until arr.length()).map { arr.getJSONObject(it).let { o -> QuickLink(o.getString("l"), o.getString("u")) } }
+    } catch (_: Exception) {
+        emptyList()
+    }
+
+    // ------------------------------------------------------------------ history
+
+    var sessionRecords: List<SessionRecord>
+        get() = SessionStats.parse(prefs.getString("session_records", null))
+        set(v) = prefs.edit().putString("session_records", SessionStats.serialize(v)).apply()
+
     // ------------------------------------------------------------------ limits
 
     var motionLimits: MotionLimits
@@ -103,6 +171,9 @@ class AppSettings(context: Context) {
             flowStrong = prefs.double("l_flow_strong", 5.0),
             maxPumpSpeed = prefs.getInt("l_max_speed", 80),
             maxSessionMl = prefs.double("l_max_session", 300.0),
+            pulsedFinal = prefs.getBoolean("l_pulsed_final", true),
+            pulsedSuper = prefs.getBoolean("l_pulsed_super", false),
+            pulseCount = prefs.getInt("l_pulse_count", 6),
         ).sanitized()
         set(raw) {
             val v = raw.sanitized()
@@ -123,6 +194,9 @@ class AppSettings(context: Context) {
                 .putDouble("l_flow_strong", v.flowStrong)
                 .putInt("l_max_speed", v.maxPumpSpeed)
                 .putDouble("l_max_session", v.maxSessionMl)
+                .putBoolean("l_pulsed_final", v.pulsedFinal)
+                .putBoolean("l_pulsed_super", v.pulsedSuper)
+                .putInt("l_pulse_count", v.pulseCount)
                 .apply()
         }
 

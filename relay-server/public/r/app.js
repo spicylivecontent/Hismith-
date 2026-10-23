@@ -166,10 +166,9 @@
     $('time').textContent = clock(s.elapsed);
     $('remaining').textContent = auto ? (s.remaining === null ? 'obegränsad tid' : 'kvar ' + clock(s.remaining)) : manual ? 'manuell styrning' : 'ingen session';
     $('speed').textContent = s.speed + ' %';
-    $('phase').textContent = stopped ? 'STOPPAD' + (s.reason ? ' – ' + s.reason : '') : paused ? 'Pausad' + (s.reason ? ' – ' + s.reason : '') : auto ? (s.phase || 'Automatik') : manual ? 'Manuell · mål ' + s.target + ' %' : 'Redo';
-    const who = s.owner === 'remote' ? 'du' : s.owner === 'local' ? 'telefonen' : s.owner === 'challenge' ? 'utmaningen' : null;
+    $('phase').textContent = stopped ? 'STOPPAD' : paused ? 'Pausad' : auto ? (s.phase || 'Automatik') : manual ? 'Manuell · mål ' + s.target + ' %' : 'Redo';
+    const who = s.owner === 'remote' ? 'du' : s.owner === 'local' ? 'telefonen' : null;
     $('info').textContent = [
-      s.mode === 'ORAL' ? 'Oral' : s.mode === 'ANAL' ? 'Anal' : 'Pocket',
       s.machines + ' maskin' + (s.machines === 1 ? '' : 'er'),
       'max ' + s.maxSpeed + ' %',
       who ? 'styrs av ' + who : null,
@@ -185,6 +184,9 @@
     }
 
     $('autoStart').disabled = auto || manual || s.machines === 0;
+    const canAct = auto && mine && !paused && !s.final;
+    document.querySelectorAll('[data-action]').forEach(function (b) { b.disabled = !canAct; });
+    if (auto && document.activeElement !== $('style') && s.style) $('style').value = s.style;
     $('finalNow').disabled = !(auto && mine);
     $('autoEnd').disabled = !auto;
     if (document.activeElement !== $('intensity')) {
@@ -200,8 +202,8 @@
     $('lubeRow').classList.toggle('hidden', !showLube);
     $('extra').classList.toggle('hidden', !lube.extra);
     $('super').classList.toggle('hidden', !lube.super);
-    $('extra').textContent = 'EXTRA ' + Math.round(lube.extraMl || 0) + ' ml';
-    $('super').textContent = 'SUPER ' + Math.round(lube.superMl || 0) + ' ml';
+    $('extra').textContent = 'EXTRA SPRUT';
+    $('super').textContent = 'SUPER SPRUT';
     $('extra').disabled = !!lube.busy;
     $('super').disabled = !!lube.busy;
   }
@@ -258,7 +260,16 @@
     let max = parseInt($('autoMax').value, 10);
     if (isNaN(max)) max = 25;
     max = Math.max(0, Math.min(240, max));
-    cmd({ k: 'auto_start', min: min, max: max === 0 ? 0 : Math.max(min, max), intensity: parseInt($('intensity').value, 10) });
+    cmd({ k: 'auto_start', min: min, max: max === 0 ? 0 : Math.max(min, max), intensity: parseInt($('intensity').value, 10), style: $('style').value });
+  });
+  $('style').addEventListener('change', function (e) {
+    if (state && state.control === 'auto' && state.owner === 'remote') cmd({ k: 'style', v: e.target.value });
+  });
+  document.querySelectorAll('[data-action]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      cmd({ k: 'action', a: b.getAttribute('data-action') });
+      if (navigator.vibrate) navigator.vibrate(30);
+    });
   });
   $('finalNow').addEventListener('click', function () { cmd({ k: 'final_now' }); });
   $('autoEnd').addEventListener('click', function () { cmd({ k: 'auto_end' }); });

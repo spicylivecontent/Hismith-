@@ -81,6 +81,35 @@
             <LinearLayout style="@style/Row">
 
                 <Button
+                    android:id="@+id/btnBoost"
+                    style="@style/Btn.Quick"
+                    android:text="⚡ Boost" />
+
+                <View style="@style/GapSmall" />
+
+                <Button
+                    android:id="@+id/btnWave"
+                    style="@style/Btn.Quick"
+                    android:text="〰 Våg" />
+
+                <View style="@style/GapSmall" />
+
+                <Button
+                    android:id="@+id/btnEdge"
+                    style="@style/Btn.Quick"
+                    android:text="🎯 Edge" />
+
+                <View style="@style/GapSmall" />
+
+                <Button
+                    android:id="@+id/btnRest"
+                    style="@style/Btn.Quick"
+                    android:text="💤 Vila" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
                     android:id="@+id/btnPause"
                     style="@style/Btn.Dark"
                     android:text="Pausa" />
@@ -220,6 +249,95 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="12dp"
+                android:text="Stil (går att byta under passet)"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/styleBALANCED"
+                    style="@style/Segment.Small"
+                    android:text="Balanserad" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/styleSENSUAL"
+                    style="@style/Segment.Small"
+                    android:text="Sensuell" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/styleINTENSE"
+                    style="@style/Segment.Small"
+                    android:text="Intensiv" />
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/styleEDGING"
+                    style="@style/Segment.Small"
+                    android:text="Edging" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/styleTEASE"
+                    style="@style/Segment.Small"
+                    android:text="Tease" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/styleRHYTHMIC"
+                    style="@style/Segment.Small"
+                    android:text="Rytmisk" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/styleHint"
+                style="@style/Muted"
+                android:paddingTop="6dp" />
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="12dp"
+                android:text="Överraskningar – plötslig burst + EXTRA SPRUT"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/surpriseOFF"
+                    style="@style/Segment.Small"
+                    android:text="Av" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/surpriseSOMETIMES"
+                    style="@style/Segment.Small"
+                    android:text="Ibland" />
+
+                <View style="@style/GapSmall" />
+
+                <TextView
+                    android:id="@+id/surpriseOFTEN"
+                    style="@style/Segment.Small"
+                    android:text="Ofta" />
+            </LinearLayout>
+
             <LinearLayout
                 style="@style/Row"
                 android:layout_marginTop="10dp">
@@ -242,6 +360,11 @@
                 android:id="@+id/swAutoLube"
                 style="@style/Toggle"
                 android:text="Mikrodoser under passet (auto-lube)" />
+
+            <Switch
+                android:id="@+id/swMicroOnBurst"
+                style="@style/Toggle"
+                android:text="Mikrodos när en burst drar igång" />
 
             <Switch
                 android:id="@+id/swFinal"
@@ -412,12 +535,55 @@
             <TextView
                 style="@style/Muted"
                 android:text="Automatiken skalas in under taket (variationen behålls). Manuell styrning och länken kan aldrig gå över det." />
+        </LinearLayout>
+
+        <!-- Statistics -->
+        <LinearLayout style="@style/Card">
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="STATISTIK" />
+
+                <Button
+                    android:id="@+id/btnClearStats"
+                    style="@style/Btn.Text"
+                    android:text="Rensa"
+                    android:textColor="@color/dim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/statsText"
+                style="@style/Body" />
+
+            <TextView
+                android:id="@+id/recentText"
+                style="@style/Muted"
+                android:fontFamily="monospace"
+                android:paddingTop="8dp"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- App -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="APP" />
 
             <Switch
                 android:id="@+id/swAutoReconnect"
                 style="@style/Toggle"
-                android:layout_marginTop="6dp"
                 android:text="Återanslut sparade enheter vid start" />
+
+            <Switch
+                android:id="@+id/swDiscreet"
+                style="@style/Toggle"
+                android:text="Diskret läge – dold i senaste appar, inga skärmdumpar" />
         </LinearLayout>
 
         <!-- Events -->

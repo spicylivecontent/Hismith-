@@ -42,6 +42,12 @@ data class LubeSettings(
     val maxPumpSpeed: Int = 80,
     /** Max total volume per session (all doses). */
     val maxSessionMl: Double = 300.0,
+    /** The final comes as several spurts instead of one even stream. */
+    val pulsedFinal: Boolean = true,
+    /** SUPER SPRUT comes as spurts too. */
+    val pulsedSuper: Boolean = false,
+    /** Number of spurts (2–12). */
+    val pulseCount: Int = 6,
 ) {
     fun sanitized(): LubeSettings {
         val fMin = finalMinMl.coerceIn(1.0, Limits.FINAL_MAX_ML)
@@ -58,6 +64,7 @@ data class LubeSettings(
             flowStrong = flowStrong.coerceIn(0.05, 20.0),
             maxPumpSpeed = maxPumpSpeed.coerceIn(10, 100),
             maxSessionMl = maxSessionMl.coerceIn(10.0, Limits.SESSION_MAX_ML_CAP),
+            pulseCount = pulseCount.coerceIn(2, 12),
         )
     }
 
@@ -164,9 +171,11 @@ class DoseController(
 
     fun activeInfo(now: Long): ActiveDoseInfo? {
         val a = active ?: return null
-        val remainingSeg = if (a.pauseUntil > now) 0L else (a.segmentEnd - now).coerceAtLeast(0)
-        val later = a.plan.segmentsMs.drop(a.segment + 1).sum() +
-            (a.plan.segmentsMs.size - 1 - a.segment) * Limits.SEGMENT_PAUSE_MS
+        val inPause = a.pauseUntil > now
+        val remainingSeg = if (inPause) 0L else (a.segmentEnd - now).coerceAtLeast(0)
+        // During a pause a.segment already points at the next (not yet started) segment.
+        val later = a.plan.segmentsMs.drop(if (inPause) a.segment else a.segment + 1).sum() +
+            a.plan.pausesMs.drop(a.segment).sum()
         val pause = (a.pauseUntil - now).coerceAtLeast(0)
         return ActiveDoseInfo(
             kind = a.request.kind,
@@ -181,8 +190,16 @@ class DoseController(
 
     /** Estimated run time for [ml] of [kind] with the current calibration (0 if impossible). */
     fun estimateMs(kind: DoseKind, ml: Double): Long {
+        return planDose(kind, ml)?.totalMs ?: 0L
+    }
+
+    /** Plan for a normal dose: one stream, or spurts for the final / SUPER when enabled. */
+    private fun planDose(kind: DoseKind, ml: Double): DosePlan? {
         val s = settings().sanitized()
-        return flowModel().plan(s.clampMl(kind, ml), wantedFlow(s, kind), maxSpeedFor(s))?.totalMs ?: 0L
+        val volume = s.clampMl(kind, ml)
+        val pulsed = (kind == DoseKind.FINAL && s.pulsedFinal) || (kind == DoseKind.SUPER && s.pulsedSuper)
+        return if (pulsed) flowModel().planPulsed(volume, wantedFlow(s, kind), maxSpeedFor(s), s.pulseCount)
+        else flowModel().plan(volume, wantedFlow(s, kind), maxSpeedFor(s))
     }
 
     private fun maxSpeedFor(s: LubeSettings): Int =
@@ -206,8 +223,7 @@ class DoseController(
             val flow = flowModel().flowAt(kotlin.math.abs(speed))
             return DosePlan(speed, flow, flow * req.serviceMs / 1000.0, segs)
         }
-        val s = settings().sanitized()
-        return flowModel().plan(s.clampMl(req.kind, req.ml), wantedFlow(s, req.kind), maxSpeedFor(s))
+        return planDose(req.kind, req.ml)
     }
 
     fun submit(req: DoseRequest, now: Long): DoseResult {
@@ -319,8 +335,8 @@ class DoseController(
         val remaining = a.segmentEnd - now
         if (remaining <= 0) {
             if (a.segment + 1 < a.plan.segmentsMs.size) {
+                a.pauseUntil = now + a.plan.pausesMs.getOrElse(a.segment) { Limits.SEGMENT_PAUSE_MS }
                 a.segment++
-                a.pauseUntil = now + Limits.SEGMENT_PAUSE_MS
                 return
             }
             active = null

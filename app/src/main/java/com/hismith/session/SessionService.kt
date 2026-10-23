@@ -31,6 +31,10 @@ import com.hismith.session.core.DoseResult
 import com.hismith.session.core.FlowModel
 import com.hismith.session.core.LubeDriver
 import com.hismith.session.core.MotionOutputs
+import com.hismith.session.core.QuickAction
+import com.hismith.session.core.SessionRecord
+import com.hismith.session.core.SessionStats
+import com.hismith.session.core.SessionStyle
 import com.hismith.session.core.RemoteCommand
 import com.hismith.session.core.RemoteWatchdog
 import com.hismith.session.core.SessionConfig
@@ -112,6 +116,14 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     private var history = com.hismith.session.core.MotionHistory()
     private var remoteDoseActive = false
     private var pendingApproval = false
+    /** The current pause was caused by the browser's video pausing (video sync may resume it). */
+    private var pausedByVideo = false
+    private var sessionStartedAt = 0L
+    private var boostsThisSession = 0
+    private var surprisesThisSession = 0
+    private var records: List<SessionRecord> = emptyList()
+    private var stats = SessionStats.of(emptyList(), 0)
+    private var statsDay = -1L
 
     private val events = ArrayDeque<String>()
     private val speedHistory = IntArray(HISTORY_SIZE)
@@ -160,6 +172,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         arbiter.setMode(settings.mode)
         remote = RemoteHost(control, this)
         history = settings.motionHistory
+        records = settings.sessionRecords
         control.post(tick)
     }
 
@@ -250,6 +263,10 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             if (!e.isPaused) {
                 arbiter.applyAuto(frame, cfg.smartStroke)
                 frame.lube?.let { cue ->
+                    if (cue.kind == DoseKind.EXTRA) {
+                        surprisesThisSession++
+                        log("Överraskning! EXTRA ${"%.0f".format(cue.ml)} ml")
+                    }
                     when (val r = arbiter.requestDose(Source.AUTO, cue.kind, cue.ml, now)) {
                         is DoseResult.Rejected -> if (cue.kind == DoseKind.FINAL) log("Final-sprut: ${r.reason}")
                         else -> if (cue.kind == DoseKind.FINAL) log("Final-sprut ${"%.0f".format(cue.ml)} ml")
@@ -480,6 +497,10 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             microDose = lube.microFor(s.mode),
             smartStroke = s.smartStroke,
             nonstop = s.nonstop,
+            style = s.style,
+            surprise = s.surprise,
+            surpriseMl = lube.extraMl,
+            microOnBurst = s.microOnBurst,
         )
     }
 
@@ -502,9 +523,13 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         e.start(now)
         engine = e
         config = cfg
+        sessionStartedAt = System.currentTimeMillis()
+        boostsThisSession = 0
+        surprisesThisSession = 0
+        pausedByVideo = false
         acquireWakeLock()
         log(buildString {
-            append("Session startad (${cfg.mode.label}")
+            append("Session startad (${cfg.mode.label}, ${cfg.style.label}")
             if (e.durationMs > 0) append(", ${e.durationMs / 60_000} min")
             cfg.challengeDay?.let { append(", utmaning dag $it") }
             append(")")
@@ -518,6 +543,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         settings.challenge = c
         val day = c.currentDay(today) ?: run { log("Ingen utmaningsdag i dag"); return@post }
         val cfg = c.sessionConfig(day, settings.lubeSettings, settings.smartStroke, settings.autoLube)
+            .copy(style = settings.style, surprise = settings.surprise, surpriseMl = settings.lubeSettings.extraMl, microOnBurst = settings.microOnBurst)
         startSessionInternal(cfg, Source.LOCAL)
     }
 
@@ -531,15 +557,62 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         engine?.setIntensity(v)
     }
 
+    fun setStyle(style: SessionStyle) = post {
+        settings.style = style
+        engine?.setStyle(style)
+    }
+
+    /** One-tap Boost / Våg / Edge / Vila on the running automatic session. */
+    fun quickAction(action: QuickAction) = post { quickActionInternal(action, Source.LOCAL) }
+
+    private fun quickActionInternal(action: QuickAction, source: Source): String? {
+        val e = engine ?: return "Ingen automatisk session"
+        // The phone may always steer; the remote only its own session.
+        if (source == Source.REMOTE && arbiter.owner != Source.REMOTE) return "Bara den som startade sessionen"
+        if (arbiter.safety != CommandArbiter.Safety.ACTIVE) return "Sessionen är pausad"
+        if (!e.trigger(action, SystemClock.elapsedRealtime())) return "Går inte just nu"
+        if (action == QuickAction.BOOST) boostsThisSession++
+        log("${action.label}!")
+        return null
+    }
+
     fun pauseSession() = post { pauseInternal("Pausad") }
 
     fun resumeSession() = post { resumeInternal(Source.LOCAL) }
 
-    private fun pauseInternal(why: String) {
+    private fun pauseInternal(why: String, byVideo: Boolean = false) {
         val now = SystemClock.elapsedRealtime()
         engine?.pause(now)
         arbiter.pause(why)
+        pausedByVideo = byVideo && arbiter.safety == CommandArbiter.Safety.PAUSED
         log(why)
+    }
+
+    /**
+     * Video sync from the browser: "playing", "paused", "ended" or "none". Only acts on sessions
+     * the phone itself runs; a pause made by the video is the only one the video may lift again.
+     */
+    fun onVideoState(state: String) = post {
+        if (!settings.videoSync && !settings.videoEndFinal) return@post
+        if (arbiter.owner != Source.LOCAL) return@post
+        when (state) {
+            "paused" -> if (settings.videoSync && arbiter.safety == CommandArbiter.Safety.ACTIVE) {
+                pauseInternal("Videon pausad", byVideo = true)
+            }
+            "playing" -> if (settings.videoSync && pausedByVideo && arbiter.safety == CommandArbiter.Safety.PAUSED) {
+                pausedByVideo = false
+                resumeInternal(Source.LOCAL)
+            }
+            "ended" -> {
+                val e = engine
+                if (settings.videoEndFinal && e != null && !e.finalStartedFlag) {
+                    e.finishSoon(SystemClock.elapsedRealtime())
+                    log("Videon är slut – final!")
+                } else if (settings.videoSync && arbiter.safety == CommandArbiter.Safety.ACTIVE) {
+                    pauseInternal("Videon är slut", byVideo = true)
+                }
+            }
+        }
     }
 
     private fun resumeInternal(source: Source): Boolean {
@@ -548,6 +621,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             return false
         }
         if (!arbiter.resume(source)) return false
+        pausedByVideo = false
         ble.releaseHolds()
         engine?.resume(SystemClock.elapsedRealtime())
         log("Fortsätter")
@@ -563,7 +637,9 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             if (!e.finished) history.recordSession(e.sequence)
             settings.motionHistory = history
             cfg.challengeDay?.let { day -> recordChallenge(day, completed, (e.progress(now) * 100).toInt()) }
+            addRecord(e, cfg, now, completed)
         }
+        pausedByVideo = false
         engine = null
         config = null
         sessionLabel = why
@@ -571,6 +647,32 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         if (!completed) doses.stopAll(why)
         releaseWakeLockIfIdle()
         log(why)
+    }
+
+    /** Session history for the statistics card (only sessions longer than 30 s). */
+    private fun addRecord(e: AutoEngine, cfg: SessionConfig, now: Long, completed: Boolean) {
+        val sec = e.elapsedMs(now) / 1000
+        if (sec < 30) return
+        records = (records + SessionRecord(
+            startedAt = sessionStartedAt,
+            epochDay = epochDayToday(),
+            durationSec = sec,
+            mode = cfg.mode,
+            style = e.currentStyle,
+            lubeMl = doses.sessionDeliveredMl,
+            completed = completed,
+            challengeDay = cfg.challengeDay,
+            surprises = surprisesThisSession,
+            boosts = boostsThisSession,
+        )).takeLast(SessionStats.MAX_RECORDS)
+        settings.sessionRecords = records
+        statsDay = -1
+    }
+
+    fun clearHistory() = post {
+        records = emptyList()
+        settings.sessionRecords = records
+        statsDay = -1
     }
 
     private fun recordChallenge(day: Int, completed: Boolean, progressPct: Int) {
@@ -615,7 +717,9 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             cfg.challengeDay?.let { recordChallenge(it, false, (e.progress(SystemClock.elapsedRealtime()) * 100).toInt()) }
             if (!e.finished) history.recordSession(e.sequence)
             settings.motionHistory = history
+            addRecord(e, cfg, SystemClock.elapsedRealtime(), completed = false)
         }
+        pausedByVideo = false
         engine = null
         config = null
         sessionLabel = "STOPP"
@@ -790,7 +894,10 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
                 arbiter.control != CommandArbiter.Control.NONE && arbiter.owner != Source.REMOTE -> "Telefonen styr just nu"
                 else -> {
                     if (arbiter.control == CommandArbiter.Control.MANUAL) arbiter.endControl(Source.REMOTE)
-                    val cfg = buildConfigFromSettings().copy(minMinutes = cmd.minMinutes, maxMinutes = cmd.maxMinutes, intensity = cmd.intensity)
+                    val cfg = buildConfigFromSettings().copy(
+                        minMinutes = cmd.minMinutes, maxMinutes = cmd.maxMinutes, intensity = cmd.intensity,
+                        style = cmd.style ?: settings.style,
+                    )
                     startSessionInternal(cfg, Source.REMOTE)
                 }
             }
@@ -799,12 +906,15 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             is RemoteCommand.Intensity -> if (arbiter.owner == Source.REMOTE) { engine?.setIntensity(cmd.percent); null } else "Bara den som startade sessionen"
             RemoteCommand.Pause -> { if (arbiter.isMotionActive) pauseInternal("Pausad via länken"); null }
             RemoteCommand.Resume -> if (resumeInternal(Source.REMOTE)) null else "Kan inte fortsätta härifrån"
+            is RemoteCommand.Action -> quickActionInternal(cmd.action, Source.REMOTE)
+            is RemoteCommand.Style -> if (arbiter.owner == Source.REMOTE) { engine?.setStyle(cmd.style); null } else "Bara den som startade sessionen"
             is RemoteCommand.Lube -> {
                 val s = settings.lubeSettings
                 val ml = if (cmd.kind == DoseKind.SUPER) s.superMl else s.extraMl
                 val r = arbiter.requestDose(Source.REMOTE, cmd.kind, ml, now)
                 reportDose(cmd.kind, r)
-                if (r is DoseResult.Rejected) r.reason else { remoteDoseActive = true; null }
+                // Generic on purpose: the reason could reveal the mode (Pocket) to the remote side.
+                if (r is DoseResult.Rejected) "Lube är inte tillgängligt just nu" else { remoteDoseActive = true; null }
             }
         }
         notice?.let { remote.sendNotice(it) }
@@ -814,15 +924,14 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     private fun sendRemoteState(now: Long, force: Boolean) {
         if (!remote.isControllerActive) return
         val e = engine
-        val lube = settings.lubeSettings
         val limits = arbiter.limits
         val dose = doses.activeInfo(now)
+        // Data minimisation (spec): only what the controller needs to steer. No mode, no lube
+        // volumes, no device names or reasons, no history – it all passes the relay server.
         val s = JSONObject()
-            .put("mode", arbiter.mode.name)
             .put("control", arbiter.control.name.lowercase())
-            .put("owner", arbiter.owner?.name?.lowercase() ?: JSONObject.NULL)
+            .put("owner", arbiter.owner?.let { if (it == Source.REMOTE) "remote" else "local" } ?: JSONObject.NULL)
             .put("safety", arbiter.safety.name.lowercase())
-            .put("reason", arbiter.reason)
             .put("speed", arbiter.outputSpeed)
             .put("target", arbiter.manualTargetPercent)
             .put("maxSpeed", minOf(limits.maxFor(arbiter.mode), limits.remoteMaxSpeed))
@@ -830,13 +939,13 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             .put("elapsed", (e?.elapsedMs(now) ?: 0L) / 1000)
             .put("remaining", e?.remainingMs(now)?.let { it / 1000 } ?: JSONObject.NULL)
             .put("intensity", e?.intensityPercent ?: settings.intensity)
+            .put("style", (e?.currentStyle ?: settings.style).name)
+            .put("final", e?.finalStartedFlag == true)
             .put("machines", ble.motionDevices().count { it.connected })
             .put("lube", JSONObject()
                 .put("available", activeLube != null && arbiter.mode.lubeAllowed)
                 .put("extra", limits.remoteAllowExtra)
                 .put("super", limits.remoteAllowSuper)
-                .put("extraMl", lube.extraMl)
-                .put("superMl", lube.superMl)
                 .put("busy", dose != null))
         val json = s.toString()
         if (!force && json == lastRemoteJson) return
@@ -914,7 +1023,13 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             finalMl = e?.plannedFinalMl ?: 0.0,
             finalStarted = e?.finalStartedFlag == true,
             challengeDay = config?.challengeDay,
+            style = e?.currentStyle ?: settings.style,
         )
+        val today = epochDayToday()
+        if (today != statsDay) {
+            stats = SessionStats.of(records, today)
+            statsDay = today
+        }
         val remoteUi = RemoteUi(
             status = remote.status,
             link = remote.link,
@@ -938,6 +1053,8 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             remote = remoteUi,
             events = events.toList(),
             speedHistory = hist,
+            stats = stats,
+            recent = records.takeLast(5).reversed(),
         )
     }
 

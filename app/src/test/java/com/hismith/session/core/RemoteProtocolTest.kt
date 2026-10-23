@@ -69,4 +69,16 @@ class RemoteProtocolTest {
         w.heard(3_000)
         assertNull(w.check(6_000))
     }
+
+    @Test
+    fun parsesActionsAndStyles() {
+        assertEquals(RemoteCommand.Action(QuickAction.BOOST), parse("""{"k":"action","a":"boost"}"""))
+        assertEquals(RemoteCommand.Style(SessionStyle.EDGING), parse("""{"k":"style","v":"EDGING"}"""))
+        assertEquals(
+            RemoteCommand.AutoStart(10, 20, 50, SessionStyle.SENSUAL),
+            parse("""{"k":"auto_start","min":10,"max":20,"intensity":50,"style":"SENSUAL"}"""),
+        )
+        assertNull(parse("""{"k":"action","a":"explode"}"""))
+        assertNull(parse("""{"k":"auto_start","min":10,"max":20,"style":"NOPE"}"""))
+    }
 }

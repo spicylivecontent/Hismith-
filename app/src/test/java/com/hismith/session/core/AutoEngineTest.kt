@@ -15,10 +15,14 @@ class AutoEngineTest {
         intensity: Int = 50,
         nonstop: Boolean = false,
         autoLube: Boolean = true,
+        style: SessionStyle = SessionStyle.BALANCED,
+        surprise: SurpriseLevel = SurpriseLevel.OFF,
+        microOnBurst: Boolean = true,
     ) = SessionConfig(
         mode = mode, minMinutes = min, maxMinutes = max, intensity = intensity,
         autoLube = autoLube, finalEnabled = true, finalMinMl = 15.0, finalMaxMl = 50.0,
         microDose = MicroDoseSettings(1.0, 20, 45), smartStroke = true, nonstop = nonstop,
+        style = style, surprise = surprise, surpriseMl = 15.0, microOnBurst = microOnBurst,
     )
 
     /** Runs a whole session on a simulated clock and returns all frames. */
@@ -77,7 +81,7 @@ class AutoEngineTest {
 
     @Test
     fun microDosesRespectInterval() {
-        val frames = simulate(AutoEngine(config(), 7, MotionHistory(), doseMs))
+        val frames = simulate(AutoEngine(config(microOnBurst = false), 7, MotionHistory(), doseMs))
         val times = frames.filter { it.second.lube?.kind == DoseKind.MICRO }.map { it.first }
         assertTrue(times.size >= 5)
         times.zipWithNext().forEach { (a, b) -> assertTrue(b - a in 20_000L..45_200L) }
@@ -192,5 +196,104 @@ class AutoEngineTest {
             assertTrue(f.lube?.kind != DoseKind.FINAL)
             t += 500
         }
+    }
+
+    @Test
+    fun microDoseFollowsBurstsButNeverTooOften() {
+        repeat(10) { seed ->
+            val frames = simulate(AutoEngine(config(min = 20, max = 25, intensity = 80), seed.toLong(), MotionHistory(), doseMs))
+            val micros = frames.filter { it.second.lube?.kind == DoseKind.MICRO }
+            micros.map { it.first }.zipWithNext().forEach { (a, b) -> assertTrue(b - a >= 10_000) }
+            // At least one micro dose lands right as a burst starts.
+            val burstStarts = frames.zipWithNext()
+                .filter { (a, b) -> a.second.behavior != AutoEngine.Behavior.BURST && b.second.behavior == AutoEngine.Behavior.BURST }
+                .map { it.second.first }
+            if (burstStarts.isNotEmpty()) {
+                assertTrue(micros.any { m -> burstStarts.any { m.first - it in 0..500 } })
+            }
+        }
+    }
+
+    private fun behaviourShare(style: SessionStyle, b: AutoEngine.Behavior): Double {
+        var hits = 0
+        var total = 0
+        repeat(40) { seed ->
+            val e = AutoEngine(config(min = 30, max = 30, style = style), 500L + seed, MotionHistory(), doseMs)
+            simulate(e, step = 250)
+            val picks = e.sequence.filter { it in AutoEngine.Behavior.PICKABLE }
+            hits += picks.count { it == b }
+            total += picks.size
+        }
+        return hits.toDouble() / total
+    }
+
+    @Test
+    fun stylesChangeTheCharacter() {
+        val edgeBalanced = behaviourShare(SessionStyle.BALANCED, AutoEngine.Behavior.EDGE)
+        val edgeEdging = behaviourShare(SessionStyle.EDGING, AutoEngine.Behavior.EDGE)
+        assertTrue("edging $edgeEdging vs $edgeBalanced", edgeEdging > edgeBalanced * 1.8)
+        val burstBalanced = behaviourShare(SessionStyle.BALANCED, AutoEngine.Behavior.BURST)
+        assertTrue(behaviourShare(SessionStyle.SENSUAL, AutoEngine.Behavior.BURST) < burstBalanced * 0.6)
+        assertTrue(behaviourShare(SessionStyle.INTENSE, AutoEngine.Behavior.BURST) > burstBalanced * 1.5)
+        assertTrue(behaviourShare(SessionStyle.TEASE, AutoEngine.Behavior.TEASE) > behaviourShare(SessionStyle.BALANCED, AutoEngine.Behavior.TEASE) * 1.8)
+    }
+
+    @Test
+    fun quickActionSwitchesBehaviourAndRamps() {
+        val e = AutoEngine(config(), 11, MotionHistory(), doseMs)
+        e.start(0)
+        var t = 0L
+        while (t < 60_000) { e.tick(t); t += 80 }
+        assertTrue(e.trigger(QuickAction.BOOST, t))
+        val start = e.tick(t)
+        assertEquals(AutoEngine.Behavior.BURST, start.behavior)
+        var peak = 0
+        repeat(40) { t += 80; peak = maxOf(peak, e.tick(t).speed) }
+        assertTrue("boost peak $peak", peak >= 65)
+        e.trigger(QuickAction.REST, t)
+        assertEquals(AutoEngine.Behavior.HOLD, e.tick(t + 80).behavior)
+        // Not during a pause.
+        e.pause(t + 100)
+        assertTrue(!e.trigger(QuickAction.EDGE, t + 200))
+    }
+
+    @Test
+    fun quickActionsAreIgnoredDuringTheFinal() {
+        val e = AutoEngine(config(min = 5, max = 5), 4, MotionHistory(), doseMs)
+        e.start(0)
+        var t = 0L
+        while (!e.finalStartedFlag && t < 400_000) { e.tick(t); t += 80 }
+        assertTrue(e.finalStartedFlag)
+        assertTrue(!e.trigger(QuickAction.BOOST, t))
+    }
+
+    @Test
+    fun surprisesBurstAndSquirt() {
+        val frames = simulate(AutoEngine(config(min = 40, max = 40, surprise = SurpriseLevel.OFTEN), 21, MotionHistory(), doseMs), step = 100)
+        val extras = frames.filter { it.second.lube?.kind == DoseKind.EXTRA }
+        assertTrue("surprises ${extras.size}", extras.size >= 6)
+        extras.forEach { (at, f) ->
+            assertEquals(15.0, f.lube!!.ml, 1e-9)
+            assertEquals(AutoEngine.Behavior.BURST, f.behavior)
+            assertTrue(frames.first { it.first == at }.second.label == "Överraskning!")
+        }
+        extras.map { it.first }.zipWithNext().forEach { (a, b) -> assertTrue(b - a >= 89_000) }
+    }
+
+    @Test
+    fun pocketSurprisesHaveNoLube() {
+        val frames = simulate(AutoEngine(config(mode = SessionMode.POCKET, min = 30, max = 30, surprise = SurpriseLevel.OFTEN), 3, MotionHistory(), doseMs))
+        assertTrue(frames.none { it.second.lube != null })
+        assertTrue(frames.any { it.second.label == "Överraskning!" })
+    }
+
+    @Test
+    fun styleCanChangeLive() {
+        val e = AutoEngine(config(), 8, MotionHistory(), doseMs)
+        e.start(0)
+        val before = e.weights().getValue(AutoEngine.Behavior.EDGE)
+        e.setStyle(SessionStyle.EDGING)
+        assertEquals(SessionStyle.EDGING, e.currentStyle)
+        assertEquals(before * SessionStyle.EDGING.edge, e.weights().getValue(AutoEngine.Behavior.EDGE), 1e-9)
     }
 }

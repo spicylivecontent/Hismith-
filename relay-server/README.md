@@ -13,13 +13,18 @@ session finns, vem som är ansluten och hashar av engångstokens.
 
 ## Sätt upp den (välj ett sätt)
 
-### A. Render.com – gratis, går att göra helt från mobilen
+### A. Render.com – gratis, ett par minuter, helt från mobilen
 
-1. Logga in på [render.com](https://render.com) med ditt GitHub-konto.
-2. **New → Blueprint** → välj det här repot. Render hittar `render.yaml` i roten.
-3. Fyll i **HOST_SECRET** när du blir tillfrågad – en lång slumpad sträng (t.ex. 40 tecken).
-4. Vänta tills tjänsten är grön. Adressen blir ungefär `https://hismith-relay.onrender.com`.
-5. I appen: **Länk → Server** → klistra in adressen och samma HOST_SECRET → *Spara server*.
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/spicylivecontent/Hismith-)
+
+Enklast är att följa guiden i appen (**Länk → Server – sätt upp en gång**):
+
+1. **Skapa och kopiera en hemlighet** i appen.
+2. **Öppna Render** (eller knappen ovan) → logga in med GitHub → klistra in hemligheten i
+   **HOST_SECRET** → *Apply*. Render hittar `render.yaml` i repots rot.
+3. När tjänsten är grön: kopiera adressen (ungefär `https://hismith-relay.onrender.com`).
+4. I appen: klistra in adressen → **Spara och testa**. Appen väcker servern och kontrollerar att den
+   är en Hismith-relay och att hemligheten krävs.
 
 Gratisplanen somnar efter 15 minuter utan trafik. Första anslutningen väcker den (tar upp till en
 minut) – tryck *Skapa länk* igen om det tar för lång tid.
@@ -56,6 +61,9 @@ Lägg den bakom något som ger HTTPS (appen accepterar bara `https://`-adresser)
 | `TRUST_PROXY` | – | `1` bakom proxy (läser klientens IP från `X-Forwarded-For` för hastighetsbegränsning) |
 | `QUIET` | – | `1` stänger av all loggning |
 
+`GET /api/info` svarar `{"name":"hismith-relay","version","secretRequired","inviteTtlSec"}` – appen
+använder den för att testa servern. `GET /healthz` svarar `ok`.
+
 ## Säkerhetsmodell
 
 - **Engångslänk:** `https://server/r/#<token>`. Token är 32 slumpade byte och står i URL-fragmentet,
@@ -86,8 +94,9 @@ Värd (telefonen) `wss://server/ws/host`:
 
 Mottagare `wss://server/ws/ctl`: `{"t":"redeem","token"}` eller `{"t":"resume","token"}`, sedan
 `{"t":"hb"}` varje sekund och `{"t":"cmd","c":{"k":…}}`. Kommandon (`k`): `stop`, `manual_start`,
-`speed {v}`, `manual_end`, `auto_start {min,max,intensity}`, `auto_end`, `final_now`,
-`intensity {v}`, `pause`, `resume`, `lube {kind: extra|super}`. Telefonen validerar alla värden.
+`speed {v}`, `manual_end`, `auto_start {min,max,intensity,style?}`, `auto_end`, `final_now`,
+`intensity {v}`, `style {v}`, `action {a: boost|wave|edge|rest}`, `pause`, `resume`,
+`lube {kind: extra|super}`. Telefonen validerar alla värden.
 
 ## Test
 

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const VERSION = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')).version;
 
 const STATIC = {
   '/r/': ['r/index.html', 'text/html; charset=utf-8'],
@@ -375,6 +376,16 @@ export function createRelay(overrides = {}) {
     }
     if (url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+      return;
+    }
+    if (url === '/api/info') {
+      // Lets the app check that the address is a Hismith relay and whether it needs the secret.
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
+        name: 'hismith-relay',
+        version: VERSION,
+        secretRequired: !!cfg.hostSecret,
+        inviteTtlSec: Math.round(cfg.inviteTtlMs / 1000),
+      }));
       return;
     }
     if (url === '/' || url === '/r') {

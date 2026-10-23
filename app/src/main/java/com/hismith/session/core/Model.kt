@@ -54,7 +54,67 @@ data class SessionConfig(
     val seed: Long? = null,
     /** Set when the session was started from a challenge day (1-based). */
     val challengeDay: Int? = null,
+    /** Character of the session: which behaviours dominate and how fast things move. */
+    val style: SessionStyle = SessionStyle.BALANCED,
+    /** Random "surprise": a sudden burst together with an EXTRA squirt. */
+    val surprise: SurpriseLevel = SurpriseLevel.OFF,
+    /** Volume of a surprise squirt (normally the EXTRA volume). */
+    val surpriseMl: Double = 15.0,
+    /** Give a micro dose right when a burst starts (instead of only on the timer). */
+    val microOnBurst: Boolean = true,
 )
+
+/** Session styles. Weights multiply the engine's base weights per behaviour. */
+enum class SessionStyle(
+    val label: String,
+    val hint: String,
+    val rhythm: Double,
+    val wave: Double,
+    val burst: Double,
+    val hold: Double,
+    val tease: Double,
+    val edge: Double,
+    /** Added to the speed level (percentage points). */
+    val shift: Double,
+    /** Multiplies ramp times: > 1 = softer transitions. */
+    val rampScale: Double,
+    /** Multiplies the micro wander. */
+    val sigmaScale: Double,
+) {
+    BALANCED("Balanserad", "Lite av allt", 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0),
+    SENSUAL("Sensuell", "Långa vågor och mjuka övergångar, sällan burst", 1.0, 2.6, 0.3, 0.8, 1.0, 0.4, -8.0, 1.6, 0.7),
+    INTENSE("Intensiv", "Mer tempo och burst, korta pauser", 0.8, 0.6, 2.6, 0.35, 0.7, 1.3, 10.0, 0.7, 1.1),
+    EDGING("Edging", "Bygger upp mot kanten och stannar – om och om igen", 0.7, 0.8, 0.6, 1.2, 0.8, 4.0, 0.0, 1.0, 1.0),
+    TEASE("Tease", "Retas: grunt och djupt, snabbt och långsamt", 0.6, 1.0, 0.4, 0.8, 4.0, 1.0, -2.0, 0.9, 1.0),
+    RHYTHMIC("Rytmisk", "Jämn takt som långsamt driver iväg", 3.0, 1.2, 0.5, 0.4, 0.3, 0.3, 0.0, 1.3, 0.5);
+
+    companion object {
+        fun parse(name: String?): SessionStyle? = values().firstOrNull { it.name == name }
+    }
+}
+
+/** How often a surprise (burst + EXTRA squirt) happens. */
+enum class SurpriseLevel(val label: String, val minSec: Int, val maxSec: Int) {
+    OFF("Av", 0, 0),
+    SOMETIMES("Ibland", 240, 480),
+    OFTEN("Ofta", 90, 240);
+
+    companion object {
+        fun parse(name: String?): SurpriseLevel? = values().firstOrNull { it.name == name }
+    }
+}
+
+/** One-tap actions that make the engine switch behaviour right now. */
+enum class QuickAction(val label: String) {
+    BOOST("Boost"),
+    WAVE("Våg"),
+    EDGE("Edge"),
+    REST("Vila");
+
+    companion object {
+        fun parse(name: String?): QuickAction? = values().firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+}
 
 /** Hard limits that no setting, remote command or challenge can exceed. */
 object Limits {
