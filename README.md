@@ -1,103 +1,182 @@
-# Hismith Smart Session
+# Hismith Smart Session 2.0
 
-Native Android-app (Kotlin, minSdk 26) som styr Hismith-sexmaskiner, Thrusting Pocket
-och Lube Launcher via Bluetooth LE med en mänsklig, oförutsägbar rörelsealgoritm.
-Inbyggd webbläsare med adblock och nödstopp-overlay. Körs som Foreground Service så
-sessionen fortsätter när skärmen är av.
+Android-app (Kotlin, minSdk 26) som styr Hismith-maskiner och Thrusting Pocket över Bluetooth LE
+och den egenbyggda **MegaLube**-launchern (ESP32 + DRV8871) över klassisk Bluetooth.
+Oförutsägbar sessionsmotor, lube i **milliliter** med kalibrerat flöde, 30-dagarsutmaningar,
+fjärrstyrning via **engångslänk**, recept och inbyggd webbläsare med adblock.
 
-## Ladda ner APK
+```
+Automatik ─┐
+Telefonen ─┼─▶ CommandArbiter ─▶ Säkerhet ─▶ Hismith-maskiner (BLE)
+Länken    ─┤                              └▶ MegaLube (Bluetooth SPP)
+Utmaning  ─┘
+```
 
-APK:n byggs automatiskt av GitHub Actions vid varje push.
+Ingen del av appen pratar direkt med motorerna förbi den centrala grinden. Samma gränser,
+STOPP-regler, kommunikationsförlust och lägesregler gäller oavsett om kommandot kommer från
+automatiken, telefonen, en utmaning eller någon med engångslänken.
 
-| Var | Hur |
+## Ladda ner
+
+| Vad | Var |
 |-----|-----|
-| **Releases** (enklast) | Gå till **Releases** → *Hismith Session v1.2.0* → ladda ner `HismithSession-release.apk` direkt i telefonen. |
-| **Actions** | Öppna senaste körningen av *Build APK* → **Artifacts** → `HismithSession-apk` (zip med både debug- och release-APK). |
+| **App (APK)** | Releases → *Hismith Session v2.0.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
+| **MegaLube-firmware (.bin)** | Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** (eller Actions → *Build MegaLube firmware* → Artifacts) |
+| **Relay-servern** | `relay-server/` – se [relay-server/README.md](relay-server/README.md) |
 
-Installera: öppna filen i telefonen → tillåt *Installera från okänd källa* för din filhanterare/webbläsare → Installera.
-Alla byggen signeras med samma nyckel (`keystore/hismith.p12`), så nya versioner installeras rakt över den gamla.
+Installera APK:n: öppna filen i telefonen → tillåt *Installera från okänd källa* → Installera.
+Uppdateringar installeras rakt över den gamla versionen.
 
-### Nytt i v1.2.0
-- **Kontrollpanel-knappen borttagen:** Startvyn är kontrollpanelen och *Webbläsare*-knappen är ensam i sitt fält. Knappen *⚙ Kontroll* finns kvar i webbläsarens verktygsfält för att gå tillbaka.
-- **Snabblänkar i webbläsaren:** Pornhub, XVideos, XNXX, xHamster, RedTube, YouPorn och SpankBang – en rad under adressfältet. Listan finns i `MainActivity.QUICK_LINKS`.
-- **Bättre adblock (`AdBlockWebViewClient`):**
-  - Path-regler matchar nu bara riktiga annonssegment (`/ads/`, `/adserver/`, `/popunder…`) i sökvägen – inte query-strängen och inte `/track/`, `/collect/`, `/analytics/` längre, som kunde bryta spellistor och uppspelning.
-  - Ogiltiga poster i värdlistan (t.ex. `facebook.com/tr`, `chaturbate.com/in`) och vanliga sajter (`stripchat.com`, `jasmin.com`) är borttagna. Fler kända adult-annonsnät är tillagda (ExoDynamic, ero-advertising, TrafficStars, Adcash m.fl.).
-  - Det kosmetiska filtret använde `[class*="ad-"]`, som också gömde `upload-`/`download-`-element. Det är nu smalare och körs redan vid sidstart.
-  - **Navigeringsskydd:** En sidladdning till en annan sajt som inte orsakats av ett tryck (popunder, falsk "uppdatera"-sida) avbryts. `intent:`/`market:`-länkar följs aldrig.
-  - Popup-fönster (`window.open`) är avstängda och nedladdningar blockeras, så inga APK/"spelare"-filer sparas.
-  - Tredjeparts-cookies är avstängda och blandat http-innehåll på https-sidor tillåts inte.
-- **Buggfixar:**
-  - Ny session kunde starta med hastigheten från föregående session, eftersom rampen inte nollställdes vid stopp.
-  - Auto-Lube (0,4 s) avbröt en pågående *SUPER SPRUT* eller slutklimax-sprut. En kortare spray ersätter nu inte längre en längre.
-  - Enhetslistan under BLE-sökning skrevs från en annan tråd utan synkronisering.
-  - Cleartext-HTTP är avstängt i manifestet (sajterna använder HTTPS).
-- Release-noteringarna i CI genereras nu automatiskt i stället för att vara hårdkodade till en version.
+## Flikarna
 
-### Nytt i v1.1.1
-- **Immersive Mode i hela appen:** `setImmersiveMode(true)` körs i `onCreate`, `onResume`, kontrollpanel och webbläsare, med både `FLAG_FULLSCREEN` och `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES`. Klocka och batteristatus är därmed alltid dolda – även i kontrollpanelen.
-- **Helskärmsvideo som faktiskt fungerar:** Vid `onShowCustomView` döljs inte WebView och skärmorienteringen tvingas inte längre, och overlay-knapparna anropar inte `bringToFront()` vid tryck. Helskärmsknappen på videor i webbläsaren fungerar utan att WebView avbryter helskärmsläget.
-- **Stoppknappar endast vid körning:** `STOPP` (nödstopp) och overlay-knapparna `⋮⋮ STOPP` / `⋮⋮ SUPER SPRUT` visas bara när en maskin är ansluten **och** en session är igång (`isSessionRunning == true`); annars döljs de.
-- **Robusthet:** BLE-sökning som alltid avslutas (inkl. `onScanFailed`), WebView som tas ur vyn innan `destroy()`, inga dialoger efter att aktiviteten avslutats och en unik tom adblock-respons per blockering.
+### ◉ Session
+- **Live:** tid, kvar, hastighet, fas och en graf över de senaste två minuterna. *Pausa/Fortsätt*,
+  *Final nu*, *Avsluta*, samt **EXTRA** och **SUPER SPRUT**.
+- **Enheter:** *+ Maskin / Pocket* söker via BLE. *+ Simulator* lägger till en låtsasmaskin så att du
+  kan prova allt utan hårdvara. Enheter sparas och återansluts vid start (kan stängas av).
+- **Läge:** **Oral**, **Anal** eller **Pocket**. Läget styr mikrodosprofil och maxhastighet;
+  **Pocket nekar all lube**, även från länken.
+- **Automatisk session:** min/max-tid, intensitet, mikrodoser, final med sprut, smart slaglängd,
+  nonstop.
+- **Manuell styrning:** hastighetsreglage (glider mjukt, max 60 %/s) och slaglängd.
+- **Maxhastighet per läge:** automatiken skalas in under taket, manuell styrning och länken kan
+  aldrig gå över.
 
-### Nytt i v1.1.0
-- **Luxury Dark/Gold-tema:** Mörkt obsidian- och guldtema med tydliga kortsektioner.
-- **Flyttbara overlay-knappar:** `⋮⋮ STOPP`, `⋮⋮ SUPER SPRUT` och `⋮⋮ Meny` kan dras fritt över skärmen och sparas automatiskt i position, även ovanpå helskärmsvideo.
-- **Immersive Mode:** Systemfälten döljs i webbläsar- och videoläge, och adressfältet kan fällas in med *Dölj fält ▲* för maximal skärmyta.
-- **Landscape Video:** Helskärmsvideo i webbläsaren roterar automatiskt till liggande läge (sensor-landscape) utan att ladda om sidan. *(I v1.1.1 tas den tvingade rotationen bort eftersom den avbröt helskärmsläget – videon styr i stället orientationen själv.)*
+### 💧 Lube
+- **Anslut MegaLube:** välj det parkopplade kortet (namn *MegaLube*, PIN *2580*) eller sök nya.
+  *Annan…* ger simulator eller originalets Hismith-launcher (BLE).
+- **Dosering:** manuell dos 1–30 ml, EXTRA och SUPER, pågående dos med levererad mängd, kö,
+  total för sessionen och hur mycket som är kvar i dunken.
+- **Volymer och flöde:** EXTRA (start 15 ml), SUPER (start 50 ml), final min–max (15–50 ml),
+  mikrodos Oral/Anal (ml + intervall), önskat flöde per typ, max pumphastighet och max per session.
+- **Kalibrering:** kör pumpen X % i Y sekunder, mät i måttglas, spara. Flera punkter (t.ex. 20, 50,
+  100 %) ger en flödeskurva. Utan kalibrering är doserna uppskattningar (5 ml/s vid 100 %).
+- **Underhåll:** fyll slangen, töm slangen bakåt (max 60 %).
 
-## Använda appen
+### ▦ Utmaning
+Skapa en utmaning på t.ex. 30 dagar: startnivå (minuter, intensitet, final-ml), slutmål,
+progression (*linjär*, *mjuk start*, *mjuk avslutning* eller *manuellt schema* där varje dag kan
+ändras), sista dagen som nonstop-mål, vad som händer med missade dagar (*markera missad*, *flytta
+resten av schemat*, *lämna kalendern oförändrad*), paus och valfri daglig påminnelse. Varje dag blir
+ett vanligt automatiskt pass – utmaningen pratar aldrig själv med Bluetooth, och STOPP fungerar alltid.
 
-1. Starta appen → godkänn **Bluetooth**, **notiser** och **batteriundantag**.
-2. **+ Lägg till enhet** → välj roll (Hals, Anal, Extra, Pocket, Lube Launcher) → välj enheten i listan (~5 s sökning). Upprepa för fler.
-   Tryck på enhetslistan för att ta bort en enhet.
-3. Ställ in **Minsta/Högsta tid** (0 = obegränsat), **Auto-Lube**, ev. **Smart slaglängd**.
-4. **STARTA SESSION**.
-5. Växla till **Webbläsare** (snabblänkarna under adressfältet), kör fullscreen. Tillbaka till kontrollpanelen med **⚙ Kontroll**. **STOPP** och **SUPER SPRUT** ligger som flyttbara overlay-knappar (och i notisen) så länge en session körs – de döljs automatiskt när ingen session är igång.
-6. Sessionen avslutas automatiskt med final (stort sprut → nedvarvning → stopp), eller manuellt med *Avsluta* / *STOPP*.
+### ⇄ Länk
+Engångslänk så att någon annan kan styra från sin webbläsare. Kräver en egen liten relay-server
+(gratis på Render.com, se [relay-server/README.md](relay-server/README.md)).
 
-### Algoritmen
+1. Fyll i serveradressen (och värdhemligheten om du satt en) → *Spara server*.
+2. *Skapa länk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
+3. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
+4. Mottagaren kan styra manuellt eller starta automatik, pausa, trycka STOPP och – om du tillåter
+   det – EXTRA/SUPER. Allt inom dina gränser.
+5. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
+   Inget startar om av sig självt.
 
-| Fas | Andel | Beteende |
-|-----|-------|----------|
-| Rytm | ~60 % | 25–55 %, varierande |
-| Max Burst | ~20 % | Ramp till 100 %, håll 10–25 s |
-| Deep Hold | ~15 % | 0 %, stilla 10–20 s |
-| Tease | ~5 % | Grunda/snabba ↔ djupa/långsamma |
-| Final | sista 20 s | 4–7 s sprut, ner till 15 %, stopp vid T=0 |
+### ☰ Recept
+Mega-Lube-receptet med kalkylator: välj satsstorlek, grundrecept eller XLube-bas, vattenfritt
+citrat, konservering och justeringarna (längre trådar, tunnare, vitare, mindre salt). Gram per
+ingrediens och beräknad osmolalitet räknas om direkt. Gör så här, säkerhet och hållbarhet finns
+under. **Inte för vaginal användning.**
 
-Alla hastighetsändringar rampas med smoothstep-easing. Med **Smart slaglängd** varieras även
-start/stopp på slaget per fas (kortare vid burst, djupt vid hold/final). Auto-Lube ger korta
-pumpstötar var 20–40 s.
+### Webbläsare
+Knappen *Webbläsare* i sidhuvudet. Snabblänkar, adblock med navigeringsskydd, helskärmsvideo och
+flyttbara overlay-knappar (**STOPP**, **SUPER SPRUT**, **Meny**) som syns så länge något kan röra sig.
+
+## Sessionsmotorn
+
+Variation på tre nivåer:
+
+| Nivå | Vad som varieras |
+|------|------------------|
+| **Makro** | Nästa beteende (rytm, vågor, burst, hold, tease, kanten). Nyss använda beteenden straffas, sådana som inte förekommit på länge får bonus, och beteendesekvenser som varit vanliga i tidigare sessioner (sparat minne) får lägre vikt. |
+| **Meso** | Varje beteende slumpas på nytt: mål, längd, ramp, easing, overshoot, avbrott, dippar. Burst är inte alltid 100 %, hold inte alltid helt stilla. |
+| **Mikro** | Långsamt korrelerat brus (Ornstein–Uhlenbeck) runt grundhastigheten. |
+
+Mikrodoser schemaläggs explicit (`nextMicroDoseAt`) efter varje dos. **Finalen räknas baklänges:**
+uppbyggnad + pumptiden för vald volym vid kalibrerat flöde + nedvarvning + marginal, så att
+sprutet hinner klart innan tiden är slut. Med en fast seed blir en session exakt reproducerbar
+(används i testerna).
+
+## Lube-modellen
+
+```
+önskad volym (ml) + önskat flöde (ml/s) → kalibrerad hastighet → körtid → faktisk dos
+```
+
+Appen strömmar `RUN:<hastighet>:<lease>` till MegaLube var 250:e ms och skickar till sist exakt
+kvarvarande tid, så kortet avslutar dosen själv även om appen hänger sig. Långa doser delas upp under
+kortets 120 s-spärr. Doskö med prioritet:
+
+**STOPP → kommunikationsförlust → final/SUPER → EXTRA → vanlig dos → mikrodos**
+
+En mikrodos avbryter eller staplas aldrig ovanpå en större dos. Totalvolymen per session har ett tak.
+
+## Säkerhet
+
+- STOPP är idempotent, har högsta prioritet och finns i sidhuvudet, i webbläsaren, i notisen och på
+  mottagarens sida. Efter STOPP står allt still tills någon uttryckligen startar igen.
+- Tappar en maskin kontakten pausas passet. En maskin som återansluter står still tills du trycker
+  *Pausa → Fortsätt* – inget startar om bara för att Bluetooth kom tillbaka.
+- MegaLube-firmwaren stoppar själv vid länkbortfall, utebliven trafik (1 s), utgången lease och efter
+  120 s sammanhängande körning.
+- Pocket-läge nekar all lube. Länken kan aldrig gå över telefonens gränser.
+- Relay-servern sparar bara hashar av engångstokens och vet ingenting om maskiner eller lube.
+
+## MegaLube
+
+Firmware och bygge ligger i [`firmware/megalube/`](firmware/megalube/README.md) (oförändrad
+firmware från MegaLube-paketet + värdtest + CI som bygger `.bin`). Mappen är fristående och kan
+flyttas till ett eget repo – den har en egen workflow. Hårdvara, inköp och kopplingsschema finns i
+Mega-Lube-dokumentet.
 
 ## Bygga själv
 
 ```bash
-./gradlew assembleDebug      # app/build/outputs/apk/debug/app-debug.apk
-./gradlew assembleRelease    # app/build/outputs/apk/release/app-release.apk
+./gradlew testDebugUnitTest            # 59 enhetstester för motor, doser, säkerhet, länk, utmaning, recept
+./gradlew assembleDebug assembleRelease
+cd relay-server && npm ci && npm test  # 12 integrationstester för relay-servern
 ```
 
-Kräver JDK 17 och Android SDK (API 35). Eller: Android Studio → *Open* → den här mappen → *Build APK*.
+Kräver JDK 17 och Android SDK 35. Appen har bara ett externt beroende (OkHttp för länken).
+
+## Signering
+
+Byggen signeras med `keystore/hismith.p12` så att uppdateringar installeras över tidigare versioner.
+**Den nyckeln och lösenordet ligger publikt i repot och ska ses som komprometterad.** För en egen
+nyckel: lägg in GitHub Secrets `HISMITH_KEYSTORE_BASE64` (base64 av en .p12),
+`HISMITH_KEYSTORE_PASSWORD`, `HISMITH_KEY_ALIAS` och ev. `HISMITH_KEY_PASSWORD`. Byte av nyckel kräver
+att appen avinstalleras en gång.
 
 ## Projektstruktur
 
 ```
 app/src/main/java/com/hismith/session/
-├── MainActivity.kt          UI, BLE-sökning, webbläsare, behörigheter
-├── SessionService.kt        Foreground service, BLE GATT + skrivkö, notis
-├── SessionEngine.kt         Tillståndsmaskin (Rytm/Burst/Hold/Tease/Final)
-├── HismithProtocol.kt       AA/FF/CC-kommandon, UUID:er
-├── DeviceRole.kt            Roller för anslutna enheter
-└── AdBlockWebViewClient.kt  Adblock för WebView
-.github/workflows/build-apk.yml   CI som bygger och publicerar APK
-keystore/hismith.p12              Signeringsnyckel (privat app, sideload)
+├── core/                  Ren Kotlin, enhetstestad
+│   ├── AutoEngine.kt      Sessionsmotorn + anti-repeat-minne
+│   ├── CommandArbiter.kt  Enda vägen till motorer och pump
+│   ├── Doses.kt           Doskö, prioriteter, RUN-strömning
+│   ├── FlowModel.kt       Kalibrering: ml + flöde → hastighet + tid
+│   ├── Challenge.kt       Utmaningar
+│   ├── RemoteProtocol.kt  Länkens kommandon + fail-safe
+│   └── Recipe.kt          Receptkalkylator
+├── hw/                    BLE (Hismith), MegaLube SPP, simulator
+├── remote/                WSS-klient mot relay-servern, Keystore
+├── ui/                    Flikarna och egna vyer
+├── SessionService.kt      Foreground service med styrloop
+└── MainActivity.kt        Flikar, webbläsare, overlay-knappar
+firmware/megalube/         ESP32-firmware + CI för .bin
+relay-server/              Miniservern för engångslänken
 ```
 
-## Teknik / protokoll
+## Protokoll
 
-- BLE-service `FFE5`, skriv-karakteristik `FFE9` (write without response).
-- Hastighet: `AA 04 <0–100> <sum>` och `FF 03 <0–100> <sum>`.
-- Slaglängd (om maskinen stödjer det): `FF 07/06` start/stopp, `FF 08` mjukhet, samt Servok-stil `CC 07/08/09`.
-- Launcher: `CC 0B 01 0C` upprepat var 280 ms under spruttiden.
-- Alla skrivningar går via en kö per enhet eftersom Android bara tillåter en utestående GATT-skrivning åt gången.
-- Automatisk återanslutning var 4:e sekund om en enhet tappas.
+- Hismith BLE: service `FFE5`, skriv `FFE9`. Hastighet `AA 04 <0–100> <sum>` och `FF 03 …`,
+  slaglängd `FF 06/07/08` och `CC 07/08/09`. Original-launchern: `CC 0B 01 0C` var 280 ms.
+- MegaLube SPP: se [firmware/megalube/README.md](firmware/megalube/README.md).
+- Länken: se [relay-server/README.md](relay-server/README.md).
+
+## Öppna frågor (TBD)
+
+Slutligt tillåtet maxflöde, minsta pålitliga mikrodos och total maxvolym fastställs efter fysisk
+test och kalibrering – värdena går att ändra i Lube-fliken. Fail-safe-tiderna för länken (4 s / 8 s)
+är testvärden och går att ändra i Länk-fliken.

@@ -45,6 +45,7 @@ class MegaLubeLink(
         private const val TAG = "MegaLube"
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
         private const val STATUS_INTERVAL_MS = 1_000L
+        private const val STALE_MS = 8_000L
         private const val MAX_QUEUE = 8
         private const val POISON = "\u0000"
     }
@@ -64,6 +65,9 @@ class MegaLubeLink(
     @Volatile var lastState: MegaLubeState? = null
         private set
     @Volatile var lastEvent: String? = null
+        private set
+    /** True once a connection succeeded – failed reconnect attempts are not worth logging. */
+    @Volatile var everConnected = false
         private set
 
     private val queue = LinkedBlockingDeque<String>()
@@ -100,6 +104,7 @@ class MegaLubeLink(
                 socket = s
                 out = s.outputStream
                 connected = true
+                everConnected = true
                 lastRxMs = SystemClock.elapsedRealtime()
                 startWriter()
                 startReader(s.inputStream)
@@ -207,6 +212,12 @@ class MegaLubeLink(
     /** Keepalive / health: STATUS once a second while nothing else is streaming. */
     fun tick(now: Long, streaming: Boolean) {
         if (!connected) return
+        if (now - lastRxMs > STALE_MS) {
+            // The board answers every command; silence means the link is dead even if the
+            // socket has not noticed yet. The firmware has stopped the pump on its own.
+            fail("Inget svar från kortet")
+            return
+        }
         if (!streaming && now - lastStatusSent >= STATUS_INTERVAL_MS) {
             lastStatusSent = now
             send("STATUS")

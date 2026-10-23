@@ -39,6 +39,11 @@ class BleDevice(
     @Volatile var lastWriteStartedMs = 0L
     /** Last speed written – shown for simulated machines. */
     @Volatile var lastSpeed = 0
+    /**
+     * Connected (or reconnected) while a session was running: kept at 0 until the user explicitly
+     * resumes or starts again. A reconnect must never restart motion by itself.
+     */
+    @Volatile var held = false
 
     fun enqueue(data: ByteArray, maxQueued: Int = 12) {
         while (queue.size >= maxQueued) queue.poll()
@@ -233,7 +238,7 @@ class BleDevices(
     fun setSpeedAll(percent: Int) {
         val p = percent.coerceIn(0, 100)
         for (dev in devices.values) {
-            if (!dev.connected || !dev.role.isMotion) continue
+            if (!dev.connected || !dev.role.isMotion || dev.held) continue
             write(dev, HismithProtocol.setSpeedAA(p))
             write(dev, HismithProtocol.setSpeedFF(p))
             if (dev.role == DeviceRole.POCKET_STROKER) {
@@ -244,7 +249,7 @@ class BleDevices(
 
     fun setStrokeAll(start: Int, stop: Int) {
         for (dev in devices.values) {
-            if (!dev.connected || dev.role != DeviceRole.MACHINE) continue
+            if (!dev.connected || dev.role != DeviceRole.MACHINE || dev.held) continue
             write(dev, HismithProtocol.setStrokeStart(start))
             write(dev, HismithProtocol.setStrokeStop(stop))
             write(dev, HismithProtocol.setSmoothness(7))
@@ -252,6 +257,11 @@ class BleDevices(
             write(dev, HismithProtocol.servoMaxLength(stop))
             write(dev, HismithProtocol.servoSmoothness(7))
         }
+    }
+
+    /** Explicit start/resume by the user: held devices may move again. */
+    fun releaseHolds() {
+        devices.values.forEach { it.held = false }
     }
 
     /** Emergency: drop everything queued so the stop packets go out first. */

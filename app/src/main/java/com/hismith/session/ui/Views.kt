@@ -78,6 +78,7 @@ class ChallengeGridView @JvmOverloads constructor(context: Context, attrs: Attri
     private val columns = 7
 
     fun setChallenge(c: Challenge?, todayDay: Int?) {
+        if (c == challenge && todayDay == today) return
         challenge = c
         today = todayDay
         requestLayout()

@@ -147,6 +147,11 @@ class RemoteHost(private val handler: Handler, private val listener: Listener) {
                 if (m.has("invite") && !m.isNull("invite")) setInvite(m.getString("invite"), m.optLong("inviteTtlSec", 900))
                 else if (!m.optBoolean("inviteValid", false)) link = null
                 controllerPresent = m.optString("controller") == "active" || m.optString("controller") == "pending"
+                if (m.optString("controller") == "active" && !approved) {
+                    // The phone revoked this controller while it was offline: tell the server now.
+                    socket?.send("""{"t":"kick"}""")
+                    controllerPresent = false
+                }
                 status = when {
                     controllerPresent && approved -> Status.ACTIVE
                     controllerPresent -> Status.PENDING

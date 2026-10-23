@@ -653,7 +653,8 @@ class MainActivity : Activity() {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        // No FLAG_FULLSCREEN: it stops the keyboard from resizing the window. The keyboard is
+        // handled through window insets instead (see applyCutoutInsets).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
             window.insetsController?.let {
@@ -670,17 +671,29 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Keep the header and the browser bar out of the camera cut-out. */
+    /**
+     * Keep the header and the browser bar out of the camera cut-out, and lift the content above
+     * the keyboard (the app draws edge-to-edge, so the window itself is not resized on API 30+).
+     */
     private fun applyCutoutInsets() {
         rootContainer.setOnApplyWindowInsetsListener { _, insets ->
+            var top = 0
+            var left = 0
+            var right = 0
+            var keyboard = 0
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val c = insets.displayCutout
-                val top = c?.safeInsetTop ?: 0
-                val left = c?.safeInsetLeft ?: 0
-                val right = c?.safeInsetRight ?: 0
-                mainColumn.setPadding(left, top, right, 0)
-                browserTopBar.setPadding(Ui.dp(this, 6) + left, Ui.dp(this, 4) + top, Ui.dp(this, 6) + right, Ui.dp(this, 2))
+                insets.displayCutout?.let {
+                    top = it.safeInsetTop
+                    left = it.safeInsetLeft
+                    right = it.safeInsetRight
+                }
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom
+            }
+            mainColumn.setPadding(left, top, right, keyboard)
+            browserPanel.setPadding(0, 0, 0, keyboard)
+            browserTopBar.setPadding(Ui.dp(this, 6) + left, Ui.dp(this, 4) + top, Ui.dp(this, 6) + right, Ui.dp(this, 2))
             insets
         }
     }

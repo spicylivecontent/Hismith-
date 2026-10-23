@@ -316,11 +316,34 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
 
     // ================================================================== MotionOutputs
 
-    override fun setSpeed(percent: Int) = ble.setSpeedAll(percent)
+    private var lastSentSpeed = -1
+    private var lastSentAt = 0L
+
+    /**
+     * The arbiter reports the speed every tick (20 Hz). Send it to the machines only when it
+     * changed noticeably or 100 ms passed, and refresh once a second; 0 always goes out at once.
+     */
+    override fun setSpeed(percent: Int) {
+        val now = SystemClock.elapsedRealtime()
+        val changed = percent != lastSentSpeed
+        val due = when {
+            !changed -> now - lastSentAt >= 1_000
+            percent == 0 -> true
+            else -> now - lastSentAt >= 100 || kotlin.math.abs(percent - lastSentSpeed) >= 5
+        }
+        if (!due) return
+        lastSentSpeed = percent
+        lastSentAt = now
+        ble.setSpeedAll(percent)
+    }
 
     override fun setStroke(startPercent: Int, stopPercent: Int) = ble.setStrokeAll(startPercent, stopPercent)
 
-    override fun stopMotion() = ble.stopAll()
+    override fun stopMotion() {
+        lastSentSpeed = 0
+        lastSentAt = SystemClock.elapsedRealtime()
+        ble.stopAll()
+    }
 
     // ================================================================== devices
 
@@ -381,6 +404,10 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
 
     override fun onBleConnected(dev: BleDevice) {
         if (dev.kind == DeviceKind.BLE) settings.rememberDevice(SavedDevice(dev.address, dev.name, dev.role, dev.kind))
+        if (dev.role.isMotion && arbiter.control != CommandArbiter.Control.NONE) {
+            dev.held = true
+            log("${dev.name} står still tills du trycker Pausa → Fortsätt")
+        }
         if (dev.role == DeviceRole.LUBE_HISMITH && !hismithLubes.containsKey(dev.address)) {
             hismithLubes[dev.address] = HismithBleLube(ble, dev) { SystemClock.elapsedRealtime() }
         }
@@ -408,7 +435,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         megaConnecting -= link.address
         if (megaLinks[link.address] !== link) return
         if (activeLube === link && doses.isBusy) doses.onDriverLost()
-        log("${link.displayName}: ${error ?: "frånkopplad"}")
+        if (link.everConnected) log("${link.displayName}: ${error ?: "frånkopplad"}")
         publish(force = true)
     }
 
@@ -471,6 +498,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             if (activeLube != null && cfg.mode.lubeAllowed) doses.estimateMs(DoseKind.FINAL, ml) else 0L
         }
         arbiter.beginAuto(source)
+        ble.releaseHolds()
         e.start(now)
         engine = e
         config = cfg
@@ -520,6 +548,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             return false
         }
         if (!arbiter.resume(source)) return false
+        ble.releaseHolds()
         engine?.resume(SystemClock.elapsedRealtime())
         log("Fortsätter")
         return true
@@ -530,6 +559,8 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         val cfg = config
         val now = SystemClock.elapsedRealtime()
         if (e != null && cfg != null) {
+            // A finished engine records itself; an interrupted session still counts for anti-repeat.
+            if (!e.finished) history.recordSession(e.sequence)
             settings.motionHistory = history
             cfg.challengeDay?.let { day -> recordChallenge(day, completed, (e.progress(now) * 100).toInt()) }
         }
@@ -558,7 +589,10 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     fun manualStart() = post {
         if (engine != null) { log("Avsluta automatiken först"); return@post }
         if (!ble.anyMotionConnected()) { log("Ingen maskin ansluten"); return@post }
-        if (arbiter.beginManual(Source.LOCAL)) acquireWakeLock()
+        if (arbiter.beginManual(Source.LOCAL)) {
+            ble.releaseHolds()
+            acquireWakeLock()
+        }
     }
 
     fun manualSpeed(v: Int) = control.post { arbiter.manualSpeed(Source.LOCAL, v) }
@@ -579,6 +613,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         val cfg = config
         if (e != null && cfg != null) {
             cfg.challengeDay?.let { recordChallenge(it, false, (e.progress(SystemClock.elapsedRealtime()) * 100).toInt()) }
+            if (!e.finished) history.recordSession(e.sequence)
             settings.motionHistory = history
         }
         engine = null
@@ -746,7 +781,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             RemoteCommand.ManualStart -> when {
                 engine != null -> "Automatiken kör – avsluta den först"
                 !ble.anyMotionConnected() -> "Ingen maskin ansluten"
-                arbiter.beginManual(Source.REMOTE) -> { acquireWakeLock(); log("Länken styr manuellt"); null }
+                arbiter.beginManual(Source.REMOTE) -> { ble.releaseHolds(); acquireWakeLock(); log("Länken styr manuellt"); null }
                 else -> "Telefonen styr just nu"
             }
             is RemoteCommand.Speed -> if (arbiter.manualSpeed(Source.REMOTE, cmd.percent)) null else "Starta manuell styrning först"
@@ -833,6 +868,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             devices += DeviceUi(
                 d.address, d.name, d.role, d.kind, d.connected,
                 when {
+                    d.held && d.connected -> "Står still – tryck Pausa → Fortsätt"
                     d.kind == DeviceKind.SIMULATED -> "Simulator · ${d.lastSpeed} %"
                     d.connected -> "Ansluten"
                     else -> "Ansluter…"
