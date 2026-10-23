@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pageChallenge"
+    style="@style/Page"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/PageColumn">
+
+        <!-- Create -->
+        <LinearLayout
+            android:id="@+id/chCreate"
+            style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="NY UTMANING" />
+
+            <TextView
+                style="@style/Muted"
+                android:paddingBottom="8dp"
+                android:text="Varje dag blir ett vanligt automatiskt pass med egna värden. Progressionen går från startnivå till slutmål. STOPP fungerar alltid – nonstop är ett mål, inte ett lås." />
+
+            <TextView
+                style="@style/Label"
+                android:text="Namn" />
+
+            <EditText
+                android:id="@+id/chName"
+                style="@style/Input.Text"
+                android:inputType="textCapSentences"
+                android:text="30-dagarsutmaning" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="8dp">
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Antal dagar" />
+
+                    <EditText
+                        android:id="@+id/chDays"
+                        style="@style/Input.Number"
+                        android:text="30" />
+                </LinearLayout>
+
+                <View style="@style/Gap" />
+
+                <LinearLayout style="@style/Field">
+
+                    <TextView
+                        style="@style/Label"
+                        android:text="Läge" />
+
+                    <Spinner
+                        android:id="@+id/chMode"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="8dp"
+                android:text="Progression" />
+
+            <Spinner
+                android:id="@+id/chProgression"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_input" />
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="12dp"
+                android:text="Dag 1: minuter · intensitet % · final ml"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/chStartMin"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="10" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/chStartInt"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="30" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/chStartMl"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="15" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="10dp"
+                android:text="Sista dagen: minuter · intensitet % · final ml"
+                android:textColor="@color/gold_light" />
+
+            <LinearLayout style="@style/Row">
+
+                <EditText
+                    android:id="@+id/chEndMin"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="45" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/chEndInt"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="85" />
+
+                <View style="@style/Gap" />
+
+                <EditText
+                    android:id="@+id/chEndMl"
+                    style="@style/Input.Number"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="50" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/chNonstop"
+                style="@style/Toggle"
+                android:layout_marginTop="6dp"
+                android:checked="true"
+                android:text="Sista dagen: nonstop-mål" />
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="4dp"
+                android:text="Missad dag" />
+
+            <Spinner
+                android:id="@+id/chMissed"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_input" />
+
+            <LinearLayout
+                style="@style/Row"
+                android:layout_marginTop="6dp">
+
+                <Switch
+                    android:id="@+id/chReminder"
+                    style="@style/Toggle"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:text="Påminnelse" />
+
+                <EditText
+                    android:id="@+id/chReminderTime"
+                    style="@style/Input.Text"
+                    android:layout_width="96dp"
+                    android:layout_marginTop="0dp"
+                    android:gravity="center"
+                    android:inputType="time"
+                    android:text="20:00" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnChCreate"
+                style="@style/Btn.Gold"
+                android:layout_width="match_parent"
+                android:layout_marginTop="12dp"
+                android:text="Skapa utmaning" />
+        </LinearLayout>
+
+        <!-- Active -->
+        <LinearLayout
+            android:id="@+id/chActive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout style="@style/Card">
+
+                <TextView
+                    android:id="@+id/chTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/gold"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/chSubtitle"
+                    style="@style/Muted" />
+
+                <ProgressBar
+                    android:id="@+id/chProgress"
+                    style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="6dp"
+                    android:layout_marginTop="8dp"
+                    android:max="1000"
+                    android:progressDrawable="@drawable/progress_gold" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:text="DAGENS PASS" />
+
+                <TextView
+                    android:id="@+id/chToday"
+                    style="@style/Body" />
+
+                <Button
+                    android:id="@+id/btnChStart"
+                    style="@style/Btn.Gold"
+                    android:layout_width="match_parent"
+                    android:layout_height="54dp"
+                    android:layout_marginTop="10dp"
+                    android:text="Starta dagens pass" />
+
+                <LinearLayout style="@style/Row">
+
+                    <Button
+                        android:id="@+id/btnChDone"
+                        style="@style/Btn.Outline"
+                        android:text="Markera klar" />
+
+                    <View style="@style/Gap" />
+
+                    <Button
+                        android:id="@+id/btnChMissed"
+                        style="@style/Btn.Dark"
+                        android:text="Markera missad" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:text="KALENDER" />
+
+                <com.hismith.session.ui.ChallengeGridView
+                    android:id="@+id/chGrid"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    style="@style/Muted"
+                    android:paddingTop="8dp"
+                    android:text="Guld = klar · bärnsten = delvis · röd = missad · ram = i dag. Tryck på en dag för detaljer." />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:text="INSTÄLLNINGAR" />
+
+                <LinearLayout style="@style/Row">
+
+                    <Switch
+                        android:id="@+id/chActiveReminder"
+                        style="@style/Toggle"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="Påminnelse" />
+
+                    <EditText
+                        android:id="@+id/chActiveReminderTime"
+                        style="@style/Input.Text"
+                        android:layout_width="96dp"
+                        android:layout_marginTop="0dp"
+                        android:gravity="center"
+                        android:inputType="time" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/Row">
+
+                    <Button
+                        android:id="@+id/btnChPause"
+                        style="@style/Btn.Outline"
+                        android:text="Pausa utmaningen" />
+
+                    <View style="@style/Gap" />
+
+                    <Button
+                        android:id="@+id/btnChDelete"
+                        style="@style/Btn.Red"
+                        android:text="Avsluta" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

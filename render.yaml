@@ -1,0 +1,19 @@
+# Render.com blueprint for the remote-link relay (relay-server/).
+# Render → New → Blueprint → pick this repo. Set HOST_SECRET when asked.
+services:
+  - type: web
+    name: hismith-relay
+    runtime: node
+    rootDir: relay-server
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node src/server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: HOST_SECRET
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"

@@ -3,6 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Signing: CI/local can supply their own key through environment variables (see README,
+// "Signering"). Without them the build falls back to the key in keystore/ so updates keep
+// installing over earlier versions – that key is public and should be rotated.
+val envKeystore: String? = System.getenv("HISMITH_KEYSTORE_FILE")?.takeIf { it.isNotBlank() && file(it).exists() }
+
 android {
     namespace = "com.hismith.session"
     compileSdk = 35
@@ -11,27 +16,31 @@ android {
         applicationId = "com.hismith.session"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "2.0.0"
     }
 
-    // A fixed signing key lives in the repo so every build (CI or local) produces
-    // an APK with the same signature -> updates install over the old version
-    // without having to uninstall first. This is a private, sideload-only app.
     signingConfigs {
         create("hismith") {
-            storeFile = rootProject.file("keystore/hismith.p12")
-            storeType = "pkcs12"
-            storePassword = "hismith123"
-            keyAlias = "hismith"
-            keyPassword = "hismith123"
+            if (envKeystore != null) {
+                storeFile = file(envKeystore)
+                storeType = System.getenv("HISMITH_KEYSTORE_TYPE") ?: "pkcs12"
+                storePassword = System.getenv("HISMITH_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("HISMITH_KEY_ALIAS")
+                keyPassword = System.getenv("HISMITH_KEY_PASSWORD") ?: System.getenv("HISMITH_KEYSTORE_PASSWORD")
+            } else {
+                storeFile = rootProject.file("keystore/hismith.p12")
+                storeType = "pkcs12"
+                storePassword = "hismith123"
+                keyAlias = "hismith"
+                keyPassword = "hismith123"
+            }
         }
     }
 
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("hismith")
-            applicationIdSuffix = ""
         }
         release {
             isMinifyEnabled = false
@@ -51,13 +60,18 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true
+        viewBinding = false
         compose = false
+        buildConfig = false
     }
 
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     packaging {
@@ -66,11 +80,10 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.constraintlayout:constraintlayout:2.2.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-service:2.8.7")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // WebSocket client for the remote link (the only third-party runtime dependency).
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM unit tests (android.jar only has stubs).
+    testImplementation("org.json:json:20240303")
 }

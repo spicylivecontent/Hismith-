@@ -1,0 +1,19 @@
+{
+  "name": "hismith-relay",
+  "version": "1.0.0",
+  "description": "Minimal WSS relay for the Hismith Smart Session one-time remote link",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/relay.test.js"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  },
+  "license": "UNLICENSED"
+}

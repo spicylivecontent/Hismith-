@@ -41,6 +41,31 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "Detected version: $VER"
 
+      - name: Unit tests (engine, doses, safety, challenge, recipe)
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      # Optional own signing key (see README, "Signering"). Without these secrets the build
+      # uses keystore/hismith.p12 so updates keep installing over older versions.
+      - name: Signing key from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.HISMITH_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.HISMITH_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.HISMITH_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.HISMITH_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            {
+              echo "HISMITH_KEYSTORE_FILE=$RUNNER_TEMP/release.p12"
+              echo "HISMITH_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "HISMITH_KEY_ALIAS=$KEY_ALIAS"
+              echo "HISMITH_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+            echo "Signing with the key from secrets"
+          else
+            echo "No signing secrets – using keystore/hismith.p12"
+          fi
+
       - name: Build debug + release APK
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
@@ -50,6 +75,14 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk     out/HismithSession-debug.apk
           cp app/build/outputs/apk/release/app-release.apk out/HismithSession-release.apk
           ls -la out
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: app/build/reports/tests/
+          retention-days: 14
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4

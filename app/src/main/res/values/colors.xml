@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gold">#D4AF37</color>
+    <color name="gold_light">#E5C158</color>
+    <color name="gold_pale">#F3E5AB</color>
+    <color name="gold_dark">#6E5A28</color>
+    <color name="bg">#08080A</color>
+    <color name="surface">#121216</color>
+    <color name="surface2">#1C1A22</color>
+    <color name="border">#2E2618</color>
+    <color name="border2">#3D3526</color>
+    <color name="text">#F5F2EB</color>
+    <color name="muted">#A8A296</color>
+    <color name="dim">#6E685C</color>
+    <color name="red">#C92A2A</color>
+    <color name="red_dark">#8A1C1C</color>
+    <color name="green">#4CAF7A</color>
+    <color name="amber">#E0A030</color>
+    <color name="ripple_dark">#33D4AF37</color>
+    <color name="ripple_light">#55FFFFFF</color>
+</resources>

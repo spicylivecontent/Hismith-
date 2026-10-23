@@ -1,0 +1,9 @@
+{$DOMAIN} {
+	encode gzip
+	# No access logs: link tokens live in the URL fragment and never reach the server,
+	# but there is no reason to log anything else either.
+	log {
+		output discard
+	}
+	reverse_proxy relay:8080
+}

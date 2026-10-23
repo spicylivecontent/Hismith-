@@ -1,0 +1,32 @@
+# Relay + Caddy (automatic HTTPS from Let's Encrypt) on a small VPS.
+#   1. Point a domain (e.g. relay.example.com) at the server's IP.
+#   2. cp .env.example .env  and fill in DOMAIN and HOST_SECRET.
+#   3. docker compose up -d
+services:
+  relay:
+    build: ..
+    restart: unless-stopped
+    environment:
+      HOST_SECRET: ${HOST_SECRET}
+      TRUST_PROXY: "1"
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - relay
+
+volumes:
+  caddy_data:
+  caddy_config:

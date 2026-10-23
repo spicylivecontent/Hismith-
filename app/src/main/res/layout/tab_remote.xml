@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pageRemote"
+    style="@style/Page"
+    android:visibility="gone">
+
+    <LinearLayout style="@style/PageColumn">
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="ENGÅNGSLÄNK" />
+
+            <TextView
+                android:id="@+id/rmStatus"
+                style="@style/Body"
+                android:text="Av"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/rmDetail"
+                style="@style/Muted" />
+
+            <TextView
+                android:id="@+id/rmLink"
+                style="@style/Body"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_input"
+                android:fontFamily="monospace"
+                android:padding="10dp"
+                android:textColor="@color/gold_pale"
+                android:textIsSelectable="true"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/rmShareRow"
+                style="@style/Row"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnRmShare"
+                    style="@style/Btn.Gold"
+                    android:text="Dela länken" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnRmCopy"
+                    style="@style/Btn.Outline"
+                    android:text="Kopiera" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rmApproveRow"
+                style="@style/Row"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btnRmApprove"
+                    style="@style/Btn.Gold"
+                    android:text="Godkänn" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnRmDeny"
+                    style="@style/Btn.Red"
+                    android:text="Neka" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <Button
+                    android:id="@+id/btnRmStart"
+                    style="@style/Btn.Gold"
+                    android:text="Skapa länk" />
+
+                <View style="@style/Gap" />
+
+                <Button
+                    android:id="@+id/btnRmStop"
+                    style="@style/Btn.Red"
+                    android:text="Avsluta länken" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnRmKick"
+                style="@style/Btn.Dark"
+                android:layout_width="match_parent"
+                android:text="Koppla bort mottagaren" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="SERVER" />
+
+            <TextView
+                style="@style/Label"
+                android:text="Adress till din relay-server (https)" />
+
+            <EditText
+                android:id="@+id/rmUrl"
+                style="@style/Input.Text"
+                android:hint="https://din-relay.onrender.com"
+                android:inputType="textUri" />
+
+            <TextView
+                style="@style/Label"
+                android:layout_marginTop="8dp"
+                android:text="Värdhemlighet (HOST_SECRET på servern, valfri)" />
+
+            <EditText
+                android:id="@+id/rmSecret"
+                style="@style/Input.Text"
+                android:hint="Lämna tomt för att behålla"
+                android:inputType="textPassword" />
+
+            <Button
+                android:id="@+id/btnRmSave"
+                style="@style/Btn.Outline"
+                android:layout_width="match_parent"
+                android:text="Spara server" />
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="8dp"
+                android:text="Hemligheten krypteras med en nyckel i Android Keystore. Servern får aldrig veta vilka maskiner du har, läge, lube-mängder eller historik – bara att en länk finns." />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/CardTitle"
+                android:text="REGLER FÖR MOTTAGAREN" />
+
+            <Switch
+                android:id="@+id/rmApproval"
+                style="@style/Toggle"
+                android:text="Kräv godkännande på telefonen" />
+
+            <Switch
+                android:id="@+id/rmAllowExtra"
+                style="@style/Toggle"
+                android:text="Får använda EXTRA SPRUT" />
+
+            <Switch
+                android:id="@+id/rmAllowSuper"
+                style="@style/Toggle"
+                android:text="Får använda SUPER SPRUT" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="88dp"
+                    android:text="Maxhastighet" />
+
+                <SeekBar
+                    android:id="@+id/rmMaxSpeed"
+                    style="@style/Slider"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/rmMaxSpeedVal"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="88dp"
+                    android:text="Stopp efter" />
+
+                <SeekBar
+                    android:id="@+id/rmStopSec"
+                    style="@style/Slider"
+                    android:max="8" />
+
+                <TextView
+                    android:id="@+id/rmStopSecVal"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="88dp"
+                    android:text="Återkalla efter" />
+
+                <SeekBar
+                    android:id="@+id/rmRevokeSec"
+                    style="@style/Slider"
+                    android:max="27" />
+
+                <TextView
+                    android:id="@+id/rmRevokeSecVal"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/Muted"
+                android:paddingTop="6dp"
+                android:text="Tappar mottagaren kontakten stoppas allt den styr efter den första tiden, och länken återkallas efter den andra. Inget startar om av sig självt. Telefonen bestämmer alltid – mottagaren kan aldrig gå över dina gränser, och Pocket-läge nekar all lube." />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
