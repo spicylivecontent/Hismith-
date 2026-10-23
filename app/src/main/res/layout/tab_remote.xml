@@ -71,19 +71,26 @@
                     android:text="Neka" />
             </LinearLayout>
 
+            <Button
+                android:id="@+id/btnRmUnlock"
+                style="@style/Btn.Gold"
+                android:layout_width="match_parent"
+                android:text="Släpp in mottagaren igen"
+                android:visibility="gone" />
+
             <LinearLayout style="@style/Row">
 
                 <Button
                     android:id="@+id/btnRmStart"
                     style="@style/Btn.Gold"
-                    android:text="Skapa länk" />
+                    android:text="Skapa fjärrlänk" />
 
                 <View style="@style/Gap" />
 
                 <Button
                     android:id="@+id/btnRmStop"
                     style="@style/Btn.Red"
-                    android:text="Avsluta länken" />
+                    android:text="Avsluta fjärrstyrning" />
             </LinearLayout>
 
             <Button
@@ -179,7 +186,7 @@
             <TextView
                 style="@style/Muted"
                 android:paddingTop="8dp"
-                android:text="Hemligheten krypteras med en nyckel i Android Keystore. Servern får aldrig veta vilka maskiner du har, läge, lube-mängder eller historik – bara att en länk finns." />
+                android:text="Hemligheten krypteras med en nyckel i Android Keystore. Servern får aldrig veta vilket läge du kör, dina inställningar eller din historik – bara det mottagaren behöver för att styra." />
         </LinearLayout>
 
         <LinearLayout style="@style/Card">
@@ -194,14 +201,39 @@
                 android:text="Kräv godkännande på telefonen" />
 
             <Switch
-                android:id="@+id/rmAllowExtra"
+                android:id="@+id/rmAllowLube"
                 style="@style/Toggle"
-                android:text="Får använda EXTRA SPRUT" />
+                android:text="Får styra Lube Launcher" />
+
+            <LinearLayout style="@style/Row">
+
+                <TextView
+                    style="@style/Label"
+                    android:minWidth="88dp"
+                    android:text="Max per klick" />
+
+                <SeekBar
+                    android:id="@+id/rmMaxMl"
+                    style="@style/Slider"
+                    android:max="29" />
+
+                <TextView
+                    android:id="@+id/rmMaxMlVal"
+                    style="@style/Value" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/rmPumpNote"
+                style="@style/Muted" />
 
             <Switch
-                android:id="@+id/rmAllowSuper"
+                android:id="@+id/rmAllowAuto"
                 style="@style/Toggle"
-                android:text="Får använda SUPER SPRUT" />
+                android:text="Får starta automatik" />
+
+            <TextView
+                style="@style/Muted"
+                android:text="Av: fjärrstyrningen är ett eget manuellt läge – mottagaren styr bara hastigheten och Lube Launcher." />
 
             <LinearLayout style="@style/Row">
 
@@ -257,7 +289,7 @@
             <TextView
                 style="@style/Muted"
                 android:paddingTop="6dp"
-                android:text="Tappar mottagaren kontakten stoppas allt den styr efter den första tiden, och länken återkallas efter den andra. Inget startar om av sig självt. Telefonen bestämmer alltid – mottagaren kan aldrig gå över dina gränser, och Pocket-läge nekar all lube." />
+                android:text="Tappar mottagaren kontakten stoppas allt den styr efter den första tiden, och länken återkallas efter den andra. Inget startar om av sig självt. Trycker du STOPP på telefonen kan mottagaren inte styra förrän du släpper in den igen. Mottagaren kan aldrig ändra slaglängd, läge eller dina gränser, och i Pocket-läge visas ingen Lube Launcher alls." />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

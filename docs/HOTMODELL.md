@@ -9,7 +9,7 @@ beskriver vad som skyddas, mot vem och hur – och vad som medvetet lämnas utan
 |----------|------------------------|
 | **Kroppslig säkerhet** | Motorer och pump får aldrig gå okontrollerat, över gränserna eller starta om av sig själva. |
 | **Kontrollen över maskinerna** | Bara telefonen och den som fått en godkänd engångslänk får styra – och bara inom telefonens gränser. |
-| **Integritet** | Läge, lube-mängder, enheter, historik och statistik är privata och lämnar inte telefonen. |
+| **Integritet** | Läge, lube-inställningar, enheter, historik och statistik är privata och lämnar inte telefonen. |
 | **Värdhemligheten** (`HOST_SECRET`) | Den som har den kan skapa sessioner på din relay-server. |
 | **Appens signeringsnyckel** | Avgör vem som kan släppa uppdateringar som installeras över din app. |
 
@@ -36,7 +36,8 @@ beskriver vad som skyddas, mot vem och hur – och vad som medvetet lämnas utan
 | Servern läcker sin databas | Servern sparar bara **SHA-256-hashar** av tokens, allt i minnet. Inget skrivs till disk. |
 | Gissning / brute force | 32 slumpade byte per token. **Hastighetsbegränsning** av inlösenförsök per IP. |
 | Replay av gamla meddelanden | Inlösta tokens raderas direkt. Återanslutningstoken byts vid varje användning. Kommandon gäller bara inom en levande WebSocket. |
-| Mottagaren försöker gå över gränserna | **Telefonen validerar allt.** Kommandon går genom `CommandArbiter`: maxhastighet per läge och länkens eget tak, mjuk ramp, Pocket nekar lube, EXTRA/SUPER via länken är **avstängt som standard**. Servern kan inte skicka något som telefonen inte redan tillåter. |
+| Mottagaren försöker gå över gränserna | **Telefonen validerar allt.** Kommandon går genom `CommandArbiter`: maxhastighet per läge och länkens eget tak, mjuk ramp. Lube via länken är bara vanliga sprut: högst 30 ml per klick (eller ägarens lägre tak), och pumphastigheten räknas i procent av ägarens **testade** maxhastighet, aldrig pumpens fulla kapacitet. Sessionens maxvolym gäller. Pocket nekar all lube. Mottagaren kan inte ändra slaglängd, läge eller gränser, och automatik via länken är **avstängt som standard**. Servern kan inte skicka något som telefonen inte redan tillåter. |
+| Ägaren vill bryta direkt | **STOPP** i appen, i notisen eller i webbläsaren stoppar allt och **låser** mottagaren tills ägaren släpper in den igen. **Avsluta fjärrstyrning** (i fliken eller i notisen) stänger länken helt. |
 | Mottagaren tappar nätet eller stänger sidan | **Fail-safe i telefonen** (`RemoteWatchdog`): hjärtslag varje sekund. 4 s tystnad → STOPP på allt mottagaren styr. 8 s → mottagaren återkallas. **Inget startar om av sig självt.** |
 | Telefonen tappar nätet | Allt lokalt fortsätter som ägaren startat det – men allt som **mottagaren** styrde stoppas. Servern håller sessionen i 60 s (`HOST_GRACE_SEC`) och raderar den sedan. |
 
@@ -44,7 +45,7 @@ beskriver vad som skyddas, mot vem och hur – och vad som medvetet lämnas utan
 
 | Hot | Skydd |
 |-----|-------|
-| Servern (eller dess värd) är nyfiken | **Dataminimering:** servern ser bara det mottagaren behöver för att styra: hastighet, tid, fas, stil, om lube finns tillgängligt och om ett sprut pågår. **Aldrig** läge (Oral/Anal/Pocket), ml-mängder, enhetsnamn, historik, statistik eller utmaningar. Avvisade lube-kommandon får ett generiskt svar så att orsaken inte avslöjar läget. |
+| Servern (eller dess värd) är nyfiken | **Dataminimering:** servern ser bara det mottagaren behöver för att styra: hastighet, tid, fas, stil, om Lube Launcher finns tillgänglig, taket per klick och om ett sprut pågår – plus de mängder mottagaren själv väljer. **Aldrig** läge (Oral/Anal/Pocket), ägarens lube-inställningar, enhetsnamn, historik, statistik eller utmaningar. Avvisade lube-kommandon får ett generiskt svar så att orsaken inte avslöjar läget. |
 | Servern är komprometterad | Den kan bara skicka kommandon som en mottagare hade kunnat skicka, och de går genom samma validering och samma gränser i telefonen. Den kan inte röra Bluetooth och inte höja några tak. I värsta fall kan den stoppa sessionen, och då **stannar** allt. |
 | Någon annan skapar sessioner på din server | `HOST_SECRET` krävs för att skapa sessioner. I appen krypteras den med en AES-nyckel i **Android Keystore**. |
 | Avlyssning / MITM | Appen accepterar bara `https://`/`wss://`. TLS sköts av Render eller Caddy (Let's Encrypt). |
@@ -91,9 +92,10 @@ beskriver vad som skyddas, mot vem och hur – och vad som medvetet lämnas utan
 ## Testat
 
 - **Enhetstester:**
-  - `CommandArbiterTest`: STOPP utan omstart, Pocket nekar lube och länkens tak och tillstånd.
-  - `RemoteProtocolTest`: validering av kommandon och watchdog 4/8 s.
-  - `DoseControllerTest`: prioriteter, tak och kö.
+  - `CommandArbiterTest`: STOPP utan omstart, Pocket nekar lube, länkens tak, max per klick, bara
+    vanliga sprut via länken och automatik bara när ägaren tillåter det.
+  - `RemoteProtocolTest`: validering av kommandon (även `spray`) och watchdog 4/8 s.
+  - `DoseControllerTest`: prioriteter, tak, kö och pumphastighet i procent av den testade maxen.
 - **Firmware:** `lube_core_test` testar parsern, RUN-streaming, watchdog, länkbortfall, tidslåset och riktningsbyte via noll.
 - **Relay-servern** (`relay-server/test`): engångsinlösen, en mottagare, rotation av
   återanslutningstoken, godkännande, kick, origin-kontroll och hastighetsbegränsning.

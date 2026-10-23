@@ -31,11 +31,15 @@ class RemoteTab(private val a: MainActivity) {
     private val btnStart: Button = a.findViewById(R.id.btnRmStart)
     private val btnStop: Button = a.findViewById(R.id.btnRmStop)
     private val btnKick: Button = a.findViewById(R.id.btnRmKick)
+    private val btnUnlock: Button = a.findViewById(R.id.btnRmUnlock)
     private val url: EditText = a.findViewById(R.id.rmUrl)
     private val secret: EditText = a.findViewById(R.id.rmSecret)
     private val swApproval: Switch = a.findViewById(R.id.rmApproval)
-    private val swExtra: Switch = a.findViewById(R.id.rmAllowExtra)
-    private val swSuper: Switch = a.findViewById(R.id.rmAllowSuper)
+    private val swLube: Switch = a.findViewById(R.id.rmAllowLube)
+    private val seekMaxMl: SeekBar = a.findViewById(R.id.rmMaxMl)
+    private val valMaxMl: TextView = a.findViewById(R.id.rmMaxMlVal)
+    private val pumpNote: TextView = a.findViewById(R.id.rmPumpNote)
+    private val swAuto: Switch = a.findViewById(R.id.rmAllowAuto)
     private val seekMax: SeekBar = a.findViewById(R.id.rmMaxSpeed)
     private val valMax: TextView = a.findViewById(R.id.rmMaxSpeedVal)
     private val seekStop: SeekBar = a.findViewById(R.id.rmStopSec)
@@ -54,8 +58,11 @@ class RemoteTab(private val a: MainActivity) {
         if (settings.hostSecretEncrypted != null) secret.hint = "Sparad (lämna tomt för att behålla)"
         val limits = settings.motionLimits
         swApproval.isChecked = settings.requireApproval
-        swExtra.isChecked = limits.remoteAllowExtra
-        swSuper.isChecked = limits.remoteAllowSuper
+        swLube.isChecked = limits.remoteAllowLube
+        seekMaxMl.progress = limits.remoteMaxMl - 1
+        valMaxMl.text = "${limits.remoteMaxMl} ml"
+        swAuto.isChecked = limits.remoteAllowAuto
+        refreshPumpNote()
         seekMax.progress = limits.remoteMaxSpeed
         valMax.text = "${limits.remoteMaxSpeed} %"
         seekStop.progress = settings.failsafeStopSec - 2
@@ -64,8 +71,12 @@ class RemoteTab(private val a: MainActivity) {
         valRevoke.text = "${settings.failsafeRevokeSec} s"
 
         swApproval.setOnCheckedChangeListener { _, c -> settings.requireApproval = c }
-        swExtra.setOnCheckedChangeListener { _, c -> settings.motionLimits = settings.motionLimits.copy(remoteAllowExtra = c); a.service?.settingsChanged() }
-        swSuper.setOnCheckedChangeListener { _, c -> settings.motionLimits = settings.motionLimits.copy(remoteAllowSuper = c); a.service?.settingsChanged() }
+        swLube.setOnCheckedChangeListener { _, c -> settings.motionLimits = settings.motionLimits.copy(remoteAllowLube = c); a.service?.settingsChanged() }
+        swAuto.setOnCheckedChangeListener { _, c -> settings.motionLimits = settings.motionLimits.copy(remoteAllowAuto = c); a.service?.settingsChanged() }
+        seekMaxMl.onChange({ v, _ -> valMaxMl.text = "${v + 1} ml" }, onStop = { v ->
+            settings.motionLimits = settings.motionLimits.copy(remoteMaxMl = v + 1)
+            a.service?.settingsChanged()
+        })
         seekMax.onChange({ v, _ -> valMax.text = "$v %" }, onStop = { v ->
             settings.motionLimits = settings.motionLimits.copy(remoteMaxSpeed = v)
             a.service?.settingsChanged()
@@ -107,6 +118,7 @@ class RemoteTab(private val a: MainActivity) {
         }
         btnStop.setOnClickListener { a.service?.remoteStop() }
         btnKick.setOnClickListener { a.service?.remoteKick() }
+        btnUnlock.setOnClickListener { a.service?.remoteUnlock() }
         a.findViewById<Button>(R.id.btnRmApprove).setOnClickListener { a.service?.remoteApprove() }
         a.findViewById<Button>(R.id.btnRmDeny).setOnClickListener { a.service?.remoteDeny() }
         a.findViewById<Button>(R.id.btnRmShare).setOnClickListener {
@@ -120,6 +132,12 @@ class RemoteTab(private val a: MainActivity) {
             val l = a.state?.remote?.link ?: return@setOnClickListener
             copy("Länk", l, "Länken kopierad")
         }
+    }
+
+    /** The pump slider on the recipient's page tops out at the safe max set in the Lube tab. */
+    private fun refreshPumpNote() {
+        val text = "Pumphastighet: 100 % hos mottagaren = din säkra maxhastighet (${settings.lubeSettings.maxPumpSpeed} %) under Lube – aldrig pumpens fulla kapacitet."
+        if (pumpNote.text.toString() != text) pumpNote.text = text
     }
 
     private fun copy(label: String, text: String, toast: String) {
@@ -151,7 +169,7 @@ class RemoteTab(private val a: MainActivity) {
                     !r.ok -> "✕ ${r.error}" to R.color.red
                     r.secretRequired == false -> "⚠ Servern svarar (${Ui.num(r.ms / 1000.0)} s) men har ingen HOST_SECRET – vem som helst kan skapa länkar via den. Lägg till hemligheten på Render." to R.color.amber
                     !hasSecret -> "⚠ Servern kräver en hemlighet – fyll i samma HOST_SECRET här." to R.color.amber
-                    else -> "✓ Servern fungerar (svar på ${Ui.num(r.ms / 1000.0)} s, version ${r.version}). Tryck Skapa länk ovan!" to R.color.green
+                    else -> "✓ Servern fungerar (svar på ${Ui.num(r.ms / 1000.0)} s, version ${r.version}). Tryck Skapa fjärrlänk ovan!" to R.color.green
                 }
                 testResult.text = text
                 testResult.setTextColor(a.getColor(color))
@@ -192,6 +210,7 @@ class RemoteTab(private val a: MainActivity) {
             else -> R.color.text
         }))
         detail.text = when {
+            r.locked -> "Du tryckte STOPP – mottagaren kan inte styra förrän du släpper in den igen."
             r.controllerSilent -> "Mottagaren är tyst – allt den styr stoppas strax."
             r.controllerActive && st.owner == Source.REMOTE -> "Mottagaren styr just nu. STOPP på telefonen fungerar alltid."
             r.controllerActive -> "Mottagaren är ansluten men styr inget just nu."
@@ -205,7 +224,9 @@ class RemoteTab(private val a: MainActivity) {
         shareRow.visibility = link.visibility
         approveRow.visibility = if (r.pendingApproval) View.VISIBLE else View.GONE
         val on = r.status != RemoteHost.Status.OFF && r.status != RemoteHost.Status.ERROR
-        btnStart.text = if (on) "Ny länk" else "Skapa länk"
+        btnStart.text = if (on) "Ny fjärrlänk" else "Skapa fjärrlänk"
+        btnUnlock.visibility = if (r.locked) View.VISIBLE else View.GONE
+        refreshPumpNote()
         Ui.setEnabled(btnStop, on)
         Ui.setEnabled(btnKick, r.controllerActive || r.pendingApproval)
     }

@@ -22,7 +22,8 @@ sealed class RemoteCommand {
     data class Intensity(val percent: Int) : RemoteCommand()
     object Pause : RemoteCommand()
     object Resume : RemoteCommand()
-    data class Lube(val kind: DoseKind) : RemoteCommand()
+    /** Spray [ml] with the Lube Launcher at [pumpPct] % of the owner's safe max pump speed. */
+    data class Spray(val ml: Int, val pumpPct: Int) : RemoteCommand()
     data class Action(val action: QuickAction) : RemoteCommand()
     data class Style(val style: SessionStyle) : RemoteCommand()
 
@@ -49,10 +50,10 @@ sealed class RemoteCommand {
                 "resume" -> Resume
                 "action" -> QuickAction.parse(c.optString("a"))?.let { Action(it) }
                 "style" -> SessionStyle.parse(c.optString("v"))?.let { Style(it) }
-                "lube" -> when (c.optString("kind")) {
-                    "extra" -> Lube(DoseKind.EXTRA)
-                    "super" -> Lube(DoseKind.SUPER)
-                    else -> null
+                "spray" -> {
+                    val ml = c.intIn("ml", 1, Limits.MANUAL_MAX_ML.toInt()) ?: return null
+                    val pump = c.intIn("pump", 10, 100) ?: return null
+                    Spray(ml, pump)
                 }
                 else -> null
             }

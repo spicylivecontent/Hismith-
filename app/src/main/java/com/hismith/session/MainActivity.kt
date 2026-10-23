@@ -407,8 +407,21 @@ class MainActivity : Activity() {
 
     private fun setupHeader() {
         btnEmergency.setOnClickListener { emergencyStop() }
-        stoppedBanner.setOnClickListener { service?.clearStop() }
+        stoppedBanner.setOnClickListener {
+            service?.clearStop()
+            if (state?.remote?.locked == true) askUnlockRemote()
+        }
         findViewById<Button>(R.id.btnModeBrowser).setOnClickListener { showBrowserMode() }
+    }
+
+    /** After a STOPP the person with the link stays locked out until the owner says so. */
+    private fun askUnlockRemote() {
+        Ui.dialog(this)
+            .setTitle("Släppa in mottagaren igen?")
+            .setMessage("Mottagaren med fjärrlänken kan inte styra sedan du tryckte STOPP.")
+            .setPositiveButton("Släpp in") { _, _ -> service?.remoteUnlock() }
+            .setNegativeButton("Inte nu", null)
+            .show()
     }
 
     private fun emergencyStop() {
@@ -424,7 +437,7 @@ class MainActivity : Activity() {
         if (!::sessionTab.isInitialized) return
         val machines = st.devices.count { it.role.isMotion && it.connected }
         headerStatus.text = buildString {
-            append("v2.1 · $machines maskin${if (machines == 1) "" else "er"}")
+            append("v2.2 · $machines maskin${if (machines == 1) "" else "er"}")
             append(if (st.lube.connected) " · lube ✓" else " · ingen lube")
             if (st.remote.status != RemoteHost.Status.OFF) append(" · länk: ${if (st.remote.controllerActive) "aktiv" else "på"}")
             append(" · ${st.mode.label}")

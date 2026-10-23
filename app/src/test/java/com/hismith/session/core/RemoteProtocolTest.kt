@@ -16,7 +16,7 @@ class RemoteProtocolTest {
         assertEquals(RemoteCommand.Speed(40), parse("""{"k":"speed","v":40}"""))
         assertEquals(RemoteCommand.AutoStart(10, 20, 70), parse("""{"k":"auto_start","min":10,"max":20,"intensity":70}"""))
         assertEquals(RemoteCommand.AutoStart(30, 30, 50), parse("""{"k":"auto_start","min":30,"max":5}"""))
-        assertEquals(RemoteCommand.Lube(DoseKind.SUPER), parse("""{"k":"lube","kind":"super"}"""))
+        assertEquals(RemoteCommand.Spray(15, 50), parse("""{"k":"spray","ml":15,"pump":50}"""))
     }
 
     @Test
@@ -25,7 +25,11 @@ class RemoteProtocolTest {
         assertNull(parse("""{"k":"speed","v":"50"}"""))
         assertNull(parse("""{"k":"speed","v":12.5}"""))
         assertNull(parse("""{"k":"speed"}"""))
-        assertNull(parse("""{"k":"lube","kind":"manual"}"""))
+        assertNull(parse("""{"k":"lube","kind":"super"}"""))
+        assertNull(parse("""{"k":"spray","ml":31,"pump":50}"""))
+        assertNull(parse("""{"k":"spray","ml":0,"pump":50}"""))
+        assertNull(parse("""{"k":"spray","ml":10,"pump":101}"""))
+        assertNull(parse("""{"k":"spray","ml":10}"""))
         assertNull(parse("""{"k":"format_disk"}"""))
         assertNull(parse("""{"k":"auto_start","min":0,"max":10}"""))
         assertNull(RemoteCommand.parse(null))

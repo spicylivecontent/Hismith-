@@ -6,13 +6,13 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#08080A">
-  <title>Hismith Remote</title>
+  <title>Fjärrstyrning</title>
   <link rel="stylesheet" href="/r/style.css">
 </head>
 <body>
   <header>
     <div>
-      <div class="brand">HISMITH REMOTE</div>
+      <div class="brand">FJÄRRSTYRNING</div>
       <div id="conn" class="conn">Ansluter…</div>
     </div>
     <span id="dot" class="dot"></span>
@@ -25,27 +25,30 @@
       <div class="card live">
         <div class="row">
           <div>
-            <div id="time" class="time">00:00</div>
-            <div id="remaining" class="muted">ingen session</div>
+            <div id="phase" class="phase">Redo</div>
+            <div id="info" class="muted"></div>
           </div>
           <div class="right">
             <div id="speed" class="speed">0 %</div>
-            <div class="muted">hastighet</div>
+            <div class="muted">just nu</div>
           </div>
         </div>
-        <div id="phase" class="phase">Redo</div>
-        <div id="info" class="muted"></div>
+        <div id="clockRow" class="hidden">
+          <span id="time" class="time-small">00:00</span>
+          <span id="remaining" class="muted"></span>
+        </div>
       </div>
 
-      <div class="tabs">
+      <div id="locked" class="card msg warn hidden">Telefonen har tryckt STOPP. Du kan inte styra förrän telefonen släpper in dig igen.</div>
+
+      <div id="tabs" class="tabs hidden">
         <button id="tabManual" class="seg selected" type="button">Manuell</button>
         <button id="tabAuto" class="seg" type="button">Automatik</button>
       </div>
 
-      <div id="manual" class="card">
-        <button id="manualToggle" class="btn gold" type="button">Starta manuell styrning</button>
-        <div id="manualBox" class="hidden">
-          <label class="label" for="speedSlider">Hastighet <b id="speedVal">0 %</b></label>
+      <div id="manual">
+        <div id="hismith" class="card hidden">
+          <label class="label title" for="speedSlider">Hismith – hastighet <b id="speedVal">0 %</b></label>
           <input id="speedSlider" type="range" min="0" max="100" value="0">
           <div class="quick">
             <button class="btn dark" data-speed="0" type="button">0</button>
@@ -53,7 +56,9 @@
             <button class="btn dark" data-speed="50" type="button">50</button>
             <button class="btn dark" data-speed="75" type="button">75</button>
           </div>
+          <div id="hismithNote" class="muted note"></div>
         </div>
+        <div id="noMachine" class="card msg hidden">Väntar på att maskinen ansluts…</div>
       </div>
 
       <div id="auto" class="card hidden">
@@ -80,19 +85,24 @@
           <button class="btn dark" data-action="rest" type="button">💤 Vila</button>
         </div>
         <div class="row2">
+          <button id="pause" class="btn dark" type="button">Pausa</button>
+          <button id="resume" class="btn outline" type="button">Fortsätt</button>
+        </div>
+        <div class="row2">
           <button id="finalNow" class="btn outline" type="button">Final nu</button>
           <button id="autoEnd" class="btn dark" type="button">Avsluta</button>
         </div>
       </div>
 
-      <div class="card">
+      <div id="lube" class="card hidden">
+        <label class="label title" for="ml">Lube Launcher – mängd per klick <b id="mlVal">15 ml</b></label>
+        <input id="ml" type="range" min="1" max="30" value="15">
+        <label class="label title" for="pump">Lube Launcher – pumphastighet <b id="pumpVal">50 %</b></label>
+        <input id="pump" type="range" min="10" max="100" step="5" value="50">
+        <div class="muted note">100 % är den säkra maxhastighet som har fastställts efter tester – inte pumpens fulla kapacitet.</div>
         <div class="row2">
-          <button id="pause" class="btn dark" type="button">Pausa</button>
-          <button id="resume" class="btn outline" type="button">Fortsätt</button>
-        </div>
-        <div id="lubeRow" class="row2 hidden">
-          <button id="extra" class="btn outline" type="button">EXTRA</button>
-          <button id="super" class="btn red" type="button">SUPER</button>
+          <button id="spray" class="btn gold" type="button">Spruta 15 ml</button>
+          <button id="lubeStop" class="btn red-outline" type="button">STOPP</button>
         </div>
       </div>
 

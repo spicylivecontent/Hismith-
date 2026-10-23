@@ -54,6 +54,8 @@ data class RemoteUi(
     val pendingApproval: Boolean,
     val controllerActive: Boolean,
     val controllerSilent: Boolean,
+    /** STOPP on the phone: the person with the link may not steer until let back in. */
+    val locked: Boolean = false,
 )
 
 /** Immutable snapshot of everything the UI shows, published ~10 times per second. */

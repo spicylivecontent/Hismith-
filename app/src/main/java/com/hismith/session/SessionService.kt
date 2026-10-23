@@ -29,6 +29,7 @@ import com.hismith.session.core.DoseController
 import com.hismith.session.core.DoseKind
 import com.hismith.session.core.DoseResult
 import com.hismith.session.core.FlowModel
+import com.hismith.session.core.Limits
 import com.hismith.session.core.LubeDriver
 import com.hismith.session.core.MotionOutputs
 import com.hismith.session.core.QuickAction
@@ -74,6 +75,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         const val ACTION_SUPER = "com.hismith.session.SUPER"
         const val ACTION_REMOTE_APPROVE = "com.hismith.session.REMOTE_APPROVE"
         const val ACTION_REMOTE_DENY = "com.hismith.session.REMOTE_DENY"
+        const val ACTION_REMOTE_END = "com.hismith.session.REMOTE_END"
         private const val TICK_MS = 50L
         private const val PUBLISH_MS = 100L
         private const val REMOTE_STATE_MS = 250L
@@ -116,6 +118,8 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     private var history = com.hismith.session.core.MotionHistory()
     private var remoteDoseActive = false
     private var pendingApproval = false
+    /** The owner pressed STOPP: the person with the link may not steer until let back in. */
+    private var remoteLocked = false
     /** The current pause was caused by the browser's video pausing (video sync may resume it). */
     private var pausedByVideo = false
     private var sessionStartedAt = 0L
@@ -183,6 +187,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             ACTION_SUPER -> dose(DoseKind.SUPER, null)
             ACTION_REMOTE_APPROVE -> remoteApprove()
             ACTION_REMOTE_DENY -> remoteDeny()
+            ACTION_REMOTE_END -> remoteStop()
         }
         return START_STICKY
     }
@@ -478,6 +483,9 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     /** Re-read limits and lube settings after the user changed them. */
     fun settingsChanged() = post {
         arbiter.limits = settings.motionLimits
+        if (engine != null && arbiter.owner == Source.REMOTE && !arbiter.limits.remoteAllowAuto) {
+            finishSession(false, "Automatik via länken avstängd")
+        }
         watchdog.stopAfterMs = settings.failsafeStopSec * 1000L
         watchdog.revokeAfterMs = maxOf(settings.failsafeRevokeSec * 1000L, watchdog.stopAfterMs + 1000)
     }
@@ -727,7 +735,15 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         remoteDoseActive = false
         releaseWakeLockIfIdle()
         log(if (source == Source.SYSTEM) "STOPP: $why" else "STOPP (${source.label})")
-        remote.sendNotice("STOPP: $why")
+        // STOPP on the phone (app, notification, browser) takes the steering away at once.
+        // Also while an admitted controller is briefly away, so it cannot come back steering.
+        if (source == Source.LOCAL && (remote.isControllerActive || (watchdog.isSilent && !watchdog.wasRevoked))) {
+            remoteLocked = true
+            remote.sendNotice("STOPP på telefonen – du kan inte styra just nu")
+            log("Mottagaren kan inte styra förrän du släpper in den igen")
+        } else {
+            remote.sendNotice("STOPP")
+        }
         updateNotification(force = true)
     }
 
@@ -781,12 +797,12 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         settings.reservoirMl?.let { settings.reservoirMl = (it - ml).coerceAtLeast(0.0) }
     }
 
-    private fun reportDose(kind: DoseKind, r: DoseResult) {
+    private fun reportDose(kind: DoseKind, r: DoseResult, label: String = kind.label) {
         when (r) {
-            is DoseResult.Started -> log("${kind.label}: ${"%.1f".format(r.plan.ml)} ml @ ${r.plan.speedPct} %")
-            is DoseResult.Preempted -> log("${kind.label} ersätter ${r.replaced.label}")
-            is DoseResult.Queued -> log("${kind.label} i kö (plats ${r.position})")
-            is DoseResult.Rejected -> log("${kind.label}: ${r.reason}")
+            is DoseResult.Started -> log("$label: ${"%.1f".format(r.plan.ml)} ml @ ${r.plan.speedPct} %")
+            is DoseResult.Preempted -> log("$label ersätter ${r.replaced.label}")
+            is DoseResult.Queued -> log("$label i kö (plats ${r.position})")
+            is DoseResult.Rejected -> log("$label: ${r.reason}")
         }
     }
 
@@ -804,6 +820,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     fun remoteNewLink() = post {
         if (remote.isControllerActive) remote.kick()
         watchdog.reset()
+        remoteLocked = false
         remote.newInvite()
     }
 
@@ -811,9 +828,19 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
         cancelApprovalNotification()
         if (!pendingApproval) return@post
         pendingApproval = false
+        remoteLocked = false
         remote.approve()
         watchdog.start(SystemClock.elapsedRealtime())
         log("Mottagaren godkänd")
+    }
+
+    /** Let the person with the link steer again after a STOPP on the phone. */
+    fun remoteUnlock() = post {
+        if (!remoteLocked) return@post
+        remoteLocked = false
+        remote.sendNotice("Du kan styra igen")
+        log("Mottagaren får styra igen")
+        sendRemoteState(SystemClock.elapsedRealtime(), force = true)
     }
 
     fun remoteDeny() = post {
@@ -824,17 +851,22 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     }
 
     fun remoteKick() = post {
-        if (arbiter.owner == Source.REMOTE) emergencyStopInternal(Source.LOCAL, "Länken avslutad")
+        if (arbiter.owner == Source.REMOTE || remoteDoseActive) emergencyStopInternal(Source.SYSTEM, "Mottagaren bortkopplad")
         pendingApproval = false
+        remoteLocked = false
         watchdog.reset()
         remote.kick()
     }
 
+    /** "Avsluta fjärrstyrning": the link stops working and whatever it steered stops. */
     fun remoteStop() = post {
-        if (arbiter.owner == Source.REMOTE) emergencyStopInternal(Source.LOCAL, "Länken avslutad")
+        if (arbiter.owner == Source.REMOTE || remoteDoseActive) emergencyStopInternal(Source.SYSTEM, "Fjärrstyrningen avslutad")
         pendingApproval = false
+        remoteLocked = false
         watchdog.reset()
         remote.stop()
+        log("Fjärrstyrningen avslutad")
+        updateNotification(force = true)
     }
 
     override fun onRemoteChanged() = publish(force = true)
@@ -847,6 +879,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             return
         }
         watchdog.reset()
+        remoteLocked = false
         if (settings.requireApproval) {
             pendingApproval = true
             showApprovalNotification()
@@ -880,9 +913,15 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             remote.sendNotice("Okänt kommando")
             return
         }
+        if (remoteLocked && cmd != RemoteCommand.Stop) {
+            remote.sendNotice("Telefonen har stoppat – du kan inte styra just nu")
+            sendRemoteState(now, force = true)
+            return
+        }
         val notice: String? = when (cmd) {
             RemoteCommand.Stop -> { emergencyStopInternal(Source.REMOTE, "STOPP"); null }
             RemoteCommand.ManualStart -> when {
+                arbiter.control == CommandArbiter.Control.MANUAL && arbiter.owner == Source.REMOTE -> null
                 engine != null -> "Automatiken kör – avsluta den först"
                 !ble.anyMotionConnected() -> "Ingen maskin ansluten"
                 arbiter.beginManual(Source.REMOTE) -> { ble.releaseHolds(); acquireWakeLock(); log("Länken styr manuellt"); null }
@@ -891,6 +930,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             is RemoteCommand.Speed -> if (arbiter.manualSpeed(Source.REMOTE, cmd.percent)) null else "Starta manuell styrning först"
             RemoteCommand.ManualEnd -> { arbiter.endControl(Source.REMOTE); releaseWakeLockIfIdle(); null }
             is RemoteCommand.AutoStart -> when {
+                !arbiter.limits.remoteAllowAuto -> "Automatik är avstängd för länken"
                 arbiter.control != CommandArbiter.Control.NONE && arbiter.owner != Source.REMOTE -> "Telefonen styr just nu"
                 else -> {
                     if (arbiter.control == CommandArbiter.Control.MANUAL) arbiter.endControl(Source.REMOTE)
@@ -908,13 +948,11 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             RemoteCommand.Resume -> if (resumeInternal(Source.REMOTE)) null else "Kan inte fortsätta härifrån"
             is RemoteCommand.Action -> quickActionInternal(cmd.action, Source.REMOTE)
             is RemoteCommand.Style -> if (arbiter.owner == Source.REMOTE) { engine?.setStyle(cmd.style); null } else "Bara den som startade sessionen"
-            is RemoteCommand.Lube -> {
-                val s = settings.lubeSettings
-                val ml = if (cmd.kind == DoseKind.SUPER) s.superMl else s.extraMl
-                val r = arbiter.requestDose(Source.REMOTE, cmd.kind, ml, now)
-                reportDose(cmd.kind, r)
+            is RemoteCommand.Spray -> {
+                val r = arbiter.requestDose(Source.REMOTE, DoseKind.MANUAL, cmd.ml.toDouble(), now, pumpPct = cmd.pumpPct)
+                reportDose(DoseKind.MANUAL, r, "Sprut via länken (${cmd.pumpPct} % pump)")
                 // Generic on purpose: the reason could reveal the mode (Pocket) to the remote side.
-                if (r is DoseResult.Rejected) "Lube är inte tillgängligt just nu" else { remoteDoseActive = true; null }
+                if (r is DoseResult.Rejected) "Lube Launcher är inte tillgänglig just nu" else { remoteDoseActive = true; null }
             }
         }
         notice?.let { remote.sendNotice(it) }
@@ -942,10 +980,11 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             .put("style", (e?.currentStyle ?: settings.style).name)
             .put("final", e?.finalStartedFlag == true)
             .put("machines", ble.motionDevices().count { it.connected })
+            .put("locked", remoteLocked)
+            .put("allowAuto", limits.remoteAllowAuto)
             .put("lube", JSONObject()
-                .put("available", activeLube != null && arbiter.mode.lubeAllowed)
-                .put("extra", limits.remoteAllowExtra)
-                .put("super", limits.remoteAllowSuper)
+                .put("available", activeLube != null && arbiter.mode.lubeAllowed && limits.remoteAllowLube)
+                .put("maxMl", limits.remoteMaxMl.coerceIn(1, Limits.MANUAL_MAX_ML.toInt()))
                 .put("busy", dose != null))
         val json = s.toString()
         if (!force && json == lastRemoteJson) return
@@ -1037,6 +1076,7 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             pendingApproval = pendingApproval,
             controllerActive = remote.isControllerActive,
             controllerSilent = remote.isControllerActive && watchdog.isSilent,
+            locked = remoteLocked,
         )
         val hist = IntArray(HISTORY_SIZE) { speedHistory[(historyPos + it) % HISTORY_SIZE] }
         return UiState(
@@ -1106,6 +1146,9 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
             .addAction(Notification.Action.Builder(null, "STOPP", servicePending(ACTION_STOP, 1)).build())
         if (::arbiter.isInitialized && activeLube != null && arbiter.mode.lubeAllowed) {
             b.addAction(Notification.Action.Builder(null, "SUPER SPRUT", servicePending(ACTION_SUPER, 2)).build())
+        }
+        if (::remote.isInitialized && remote.isControllerActive) {
+            b.addAction(Notification.Action.Builder(null, "Avsluta fjärrstyrning", servicePending(ACTION_REMOTE_END, 5)).build())
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         return b.build()

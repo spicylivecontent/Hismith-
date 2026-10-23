@@ -41,6 +41,20 @@ class DoseControllerTest {
     }
 
     @Test
+    fun pumpSpeedIsAShareOfTheSafeMax() {
+        settings = settings.copy(maxPumpSpeed = 60)
+        val r = ctl.submit(DoseRequest(DoseKind.MANUAL, 6.0, Source.REMOTE, pumpPct = 50), 0)
+        val plan = (r as DoseResult.Started).plan
+        assertEquals(30, plan.speedPct) // 50 % of the tested max 60 %
+        assertEquals(1.2, plan.mlPerSec, 0.001)
+        assertEquals("RUN:30:700", driver.commands.first())
+        ctl.stopAll()
+        // 100 % never goes above the safe max.
+        val full = ctl.submit(DoseRequest(DoseKind.MANUAL, 6.0, Source.REMOTE, pumpPct = 100), 0)
+        assertEquals(60, (full as DoseResult.Started).plan.speedPct)
+    }
+
+    @Test
     fun microDoseNeverInterruptsOrStacks() {
         ctl.submit(DoseRequest(DoseKind.EXTRA, 10.0, Source.LOCAL), 0)
         val micro = ctl.submit(DoseRequest(DoseKind.MICRO, 0.5, Source.AUTO), 100)

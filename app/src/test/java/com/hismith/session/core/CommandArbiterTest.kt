@@ -79,13 +79,32 @@ class CommandArbiterTest {
     }
 
     @Test
-    fun remoteLubeNeedsPermission() {
+    fun remoteSpraysPlainDosesWithinTheCapPerClick() {
         arbiter.setMode(SessionMode.ANAL)
-        assertTrue(arbiter.requestDose(Source.REMOTE, DoseKind.SUPER, 50.0, 0) is DoseResult.Rejected)
-        arbiter.limits = arbiter.limits.copy(remoteAllowSuper = true)
-        assertTrue(arbiter.requestDose(Source.REMOTE, DoseKind.SUPER, 50.0, 0) is DoseResult.Started)
-        // The remote can never ask for a free volume.
-        assertTrue(arbiter.requestDose(Source.REMOTE, DoseKind.MANUAL, 30.0, 0) is DoseResult.Rejected)
+        arbiter.limits = arbiter.limits.copy(remoteMaxMl = 20)
+        val r = arbiter.requestDose(Source.REMOTE, DoseKind.MANUAL, 30.0, 0, pumpPct = 50)
+        assertEquals(20.0, (r as DoseResult.Started).plan.ml, 0.001)
+        // Only plain doses: no SUPER, final or service from the link.
+        for (kind in listOf(DoseKind.EXTRA, DoseKind.SUPER, DoseKind.FINAL, DoseKind.SERVICE, DoseKind.MICRO)) {
+            assertTrue(arbiter.requestDose(Source.REMOTE, kind, 5.0, 0) is DoseResult.Rejected)
+        }
+    }
+
+    @Test
+    fun remoteLubeCanBeTurnedOff() {
+        arbiter.setMode(SessionMode.ANAL)
+        arbiter.limits = arbiter.limits.copy(remoteAllowLube = false)
+        assertTrue(arbiter.requestDose(Source.REMOTE, DoseKind.MANUAL, 5.0, 0, pumpPct = 50) is DoseResult.Rejected)
+        assertTrue(arbiter.requestDose(Source.LOCAL, DoseKind.MANUAL, 5.0, 0) is DoseResult.Started)
+    }
+
+    @Test
+    fun remoteIsAManualModeUnlessAutoIsAllowed() {
+        assertFalse(arbiter.beginAuto(Source.REMOTE))
+        assertEquals(CommandArbiter.Control.NONE, arbiter.control)
+        assertTrue(arbiter.beginManual(Source.REMOTE))
+        arbiter.limits = arbiter.limits.copy(remoteAllowAuto = true)
+        assertTrue(arbiter.beginAuto(Source.REMOTE))
     }
 
     @Test

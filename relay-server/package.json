@@ -1,6 +1,6 @@
 {
   "name": "hismith-relay",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Minimal WSS relay for the Hismith Smart Session one-time remote link",
   "private": true,
   "type": "module",
