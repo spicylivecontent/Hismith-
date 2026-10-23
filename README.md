@@ -1,4 +1,4 @@
-# Hismith Smart Session 2.1
+# Hismith Smart Session 2.2
 
 Android-app (Kotlin, minSdk 26) som styr Hismith-maskiner och Thrusting Pocket över Bluetooth LE
 och den egenbyggda **MegaLube**-launchern (ESP32 + DRV8871) över klassisk Bluetooth.
@@ -20,7 +20,7 @@ automatiken, telefonen, en utmaning eller någon med engångslänken.
 
 | Vad | Var |
 |-----|-----|
-| **App (APK)** | Releases → *Hismith Session v2.1.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
+| **App (APK)** | Releases → *Hismith Session v2.2.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
 | **MegaLube-firmware (.bin)** | Repot [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube) → Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** |
 | **Relay-servern** (för engångslänkar) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/spicylivecontent/Hismith-) – eller se [relay-server/README.md](relay-server/README.md) |
 
@@ -81,12 +81,30 @@ gratis på Render och uppsatt på ett par minuter, helt från mobilen. Fliken gu
 
 Sedan:
 
-1. *Skapa länk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
-2. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
-3. Mottagaren kan styra manuellt eller starta automatik (med stil), trycka ⚡ Boost / 〰 Våg /
-   🎯 Edge / 💤 Vila, pausa, trycka STOPP och – om du tillåter det – EXTRA/SUPER. Allt inom dina gränser.
-4. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
+1. Anslut maskinen (och Lube Launcher) och välj läge.
+2. *Skapa fjärrlänk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
+3. Mottagaren öppnar den i sin vanliga webbläsare, utan någon app. Telefonen frågar om du godkänner
+   (kan stängas av). Mottagarens knapptryckningar går via servern till din telefon, som styr maskinen
+   över Bluetooth – mottagaren ansluter aldrig själv till Bluetooth.
+4. Fjärrstyrningen är ett **eget manuellt läge**. Mottagaren kan:
+   - ändra **Hismith – hastighet** (upp till taket du har satt),
+   - välja **mängd per klick** (högst 30 ml, eller lägre om du vill),
+   - välja **pumphastighet**, där 100 % är din säkra maxhastighet från Lube-fliken – aldrig pumpens
+     fulla kapacitet,
+   - trycka **Spruta X ml** och **STOPP**.
+
+   I Pocket-läge visas bara Hismith-hastigheten, utan några Lube Launcher-kontroller. Sidan nämner
+   aldrig Oral, Anal eller Pocket, bara *Hismith* och *Lube Launcher* när de finns.
+5. Mottagaren kan **inte** ändra slaglängd, läge eller dina gränser, och kommer inte åt appens övriga
+   inställningar. Automatik via länken (stil, ⚡ Boost / 〰 Våg / 🎯 Edge / 💤 Vila) kan du slå på
+   under *Regler för mottagaren*. Det är avstängt från början.
+6. Trycker du **STOPP** i appen, i notisen eller i webbläsaren stannar allt, och mottagaren förlorar
+   genast möjligheten att styra. När du kvitterar STOPP frågar appen om mottagaren får styra igen.
+   **Avsluta fjärrstyrning**, i fliken eller direkt i notisen, stänger länken helt.
+7. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
    Inget startar om av sig självt.
+
+Den inbyggda webbläsaren i appen och mottagarens fjärrpanel är två helt skilda saker.
 
 ### ☰ Recept
 Mega-Lube-receptet med kalkylator: välj satsstorlek, grundrecept eller XLube-bas, vattenfritt
@@ -146,7 +164,7 @@ En mikrodos avbryter eller staplas aldrig ovanpå en större dos. Totalvolymen p
   120 s sammanhängande körning.
 - Pocket-läge nekar all lube. Länken kan aldrig gå över telefonens gränser.
 - Relay-servern sparar bara hashar av engångstokens. Mottagaren (och därmed servern) får bara det
-  som behövs för att styra – aldrig läge, ml-mängder, enhetsnamn eller historik.
+  som behövs för att styra – aldrig läge, dina lube-inställningar, enhetsnamn eller historik.
 
 Hela hotmodellen (vad som skyddas, mot vem, hur och vad som lämnas utanför) finns i
 [docs/HOTMODELL.md](docs/HOTMODELL.md).

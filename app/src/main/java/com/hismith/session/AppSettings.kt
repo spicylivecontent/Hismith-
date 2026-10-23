@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.hismith.session.core.Challenge
 import com.hismith.session.core.FlowModel
+import com.hismith.session.core.Limits
 import com.hismith.session.core.LubeSettings
 import com.hismith.session.core.MicroDoseSettings
 import com.hismith.session.core.MotionHistory
@@ -141,8 +142,9 @@ class AppSettings(context: Context) {
             maxSpeedAnal = prefs.getInt("max_anal", 100),
             maxSpeedPocket = prefs.getInt("max_pocket", 100),
             remoteMaxSpeed = prefs.getInt("remote_max", 100),
-            remoteAllowExtra = prefs.getBoolean("remote_extra", false),
-            remoteAllowSuper = prefs.getBoolean("remote_super", false),
+            remoteAllowLube = prefs.getBoolean("remote_lube", true),
+            remoteMaxMl = prefs.getInt("remote_max_ml", 30),
+            remoteAllowAuto = prefs.getBoolean("remote_auto", false),
             slewPerSecond = prefs.getInt("slew", 60),
         )
         set(v) = prefs.edit()
@@ -150,8 +152,9 @@ class AppSettings(context: Context) {
             .putInt("max_anal", v.maxSpeedAnal.coerceIn(0, 100))
             .putInt("max_pocket", v.maxSpeedPocket.coerceIn(0, 100))
             .putInt("remote_max", v.remoteMaxSpeed.coerceIn(0, 100))
-            .putBoolean("remote_extra", v.remoteAllowExtra)
-            .putBoolean("remote_super", v.remoteAllowSuper)
+            .putBoolean("remote_lube", v.remoteAllowLube)
+            .putInt("remote_max_ml", v.remoteMaxMl.coerceIn(1, Limits.MANUAL_MAX_ML.toInt()))
+            .putBoolean("remote_auto", v.remoteAllowAuto)
             .putInt("slew", v.slewPerSecond.coerceIn(5, 400))
             .apply()
 

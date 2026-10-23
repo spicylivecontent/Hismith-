@@ -18,8 +18,12 @@ data class MotionLimits(
     val maxSpeedPocket: Int = 100,
     /** Extra cap for the remote controller (never above the mode limit). */
     val remoteMaxSpeed: Int = 100,
-    val remoteAllowExtra: Boolean = false,
-    val remoteAllowSuper: Boolean = false,
+    /** The remote may spray with the Lube Launcher (never in Pocket mode). */
+    val remoteAllowLube: Boolean = true,
+    /** Most the remote may spray per click (ml, never above [Limits.MANUAL_MAX_ML]). */
+    val remoteMaxMl: Int = 30,
+    /** The remote may start automatic sessions. Off: the link is a separate manual mode. */
+    val remoteAllowAuto: Boolean = false,
     /** Manual / remote speed changes are slewed at this rate (%/s) – no hard jumps. */
     val slewPerSecond: Int = 60,
 ) {
@@ -40,7 +44,8 @@ data class MotionLimits(
  *    until somebody explicitly starts again (no automatic restart).
  *  - Only the current owner of motion may change speed.
  *  - Pocket mode refuses every lube command, whatever the source.
- *  - The remote can never exceed the local limits.
+ *  - The remote can never exceed the local limits; it only sprays plain doses, and only
+ *    starts automatic sessions when the owner allows it.
  */
 class CommandArbiter(
     private val out: MotionOutputs,
@@ -84,6 +89,7 @@ class CommandArbiter(
 
     /** Explicit start of an automatic session. Clears a previous STOP. */
     fun beginAuto(source: Source): Boolean {
+        if (source == Source.REMOTE && !limits.remoteAllowAuto) return false
         control = Control.AUTO
         owner = source
         safety = Safety.ACTIVE
@@ -199,15 +205,14 @@ class CommandArbiter(
         }
     }
 
-    fun requestDose(source: Source, kind: DoseKind, ml: Double, now: Long): DoseResult {
+    /** [pumpPct]: pump speed in % of the safe max instead of the configured flow (remote spray). */
+    fun requestDose(source: Source, kind: DoseKind, ml: Double, now: Long, pumpPct: Int? = null): DoseResult {
         if (!mode.lubeAllowed) return DoseResult.Rejected("Pocket-läge: ingen lube")
+        var volume = ml
         if (source == Source.REMOTE) {
-            val allowed = when (kind) {
-                DoseKind.EXTRA -> limits.remoteAllowExtra
-                DoseKind.SUPER -> limits.remoteAllowSuper
-                else -> false
-            }
-            if (!allowed) return DoseResult.Rejected("Inte tillåtet via länken")
+            // The remote only knows "spray X ml": a plain dose within the owner's cap per click.
+            if (kind != DoseKind.MANUAL || !limits.remoteAllowLube) return DoseResult.Rejected("Inte tillåtet via länken")
+            volume = ml.coerceAtMost(limits.remoteMaxMl.coerceIn(1, Limits.MANUAL_MAX_ML.toInt()).toDouble())
         }
         if (source != Source.LOCAL && safety == Safety.STOPPED) return DoseResult.Rejected("Stoppad")
         if (source == Source.AUTO && (control != Control.AUTO || safety != Safety.ACTIVE)) {
@@ -216,7 +221,7 @@ class CommandArbiter(
         if (kind == DoseKind.SERVICE && (control != Control.NONE || source != Source.LOCAL)) {
             return DoseResult.Rejected("Underhåll bara när ingen session körs")
         }
-        return doses.submit(DoseRequest(kind, ml, source), now)
+        return doses.submit(DoseRequest(kind, volume, source, pumpPct = pumpPct), now)
     }
 
     /** Pump service run (prime / empty / calibrate). Local only, only while idle; allowed in Pocket. */

@@ -7,8 +7,8 @@ webbläsare** över WSS. Den serverar också mottagarens kontrollsida på `/r/`.
 Mottagarens webbläsare ──WSS──▶ Relay ◀──WSS── Android-telefonen ──BLE/SPP──▶ maskiner + MegaLube
 ```
 
-Telefonen är alltid auktoriteten. Servern rör aldrig Bluetooth, känner inte till maskiner, läge,
-lube-mängder eller historik och kan aldrig gå över telefonens gränser. Den vet bara att en
+Telefonen är alltid auktoriteten. Servern rör aldrig Bluetooth, känner inte till läge,
+inställningar eller historik och kan aldrig gå över telefonens gränser. Den vet bara att en
 session finns, vem som är ansluten och hashar av engångstokens.
 
 ## Sätt upp den (välj ett sätt)
@@ -27,7 +27,7 @@ Enklast är att följa guiden i appen (**Länk → Server – sätt upp en gång
    är en Hismith-relay och att hemligheten krävs.
 
 Gratisplanen somnar efter 15 minuter utan trafik. Första anslutningen väcker den (tar upp till en
-minut) – tryck *Skapa länk* igen om det tar för lång tid.
+minut) – tryck *Skapa fjärrlänk* igen om det tar för lång tid.
 
 ### B. Egen VPS med Docker (automatisk HTTPS via Caddy)
 
@@ -94,9 +94,10 @@ Värd (telefonen) `wss://server/ws/host`:
 
 Mottagare `wss://server/ws/ctl`: `{"t":"redeem","token"}` eller `{"t":"resume","token"}`, sedan
 `{"t":"hb"}` varje sekund och `{"t":"cmd","c":{"k":…}}`. Kommandon (`k`): `stop`, `manual_start`,
-`speed {v}`, `manual_end`, `auto_start {min,max,intensity,style?}`, `auto_end`, `final_now`,
-`intensity {v}`, `style {v}`, `action {a: boost|wave|edge|rest}`, `pause`, `resume`,
-`lube {kind: extra|super}`. Telefonen validerar alla värden.
+`speed {v}`, `manual_end` och `spray {ml: 1–30, pump: 10–100}`. Pumphastigheten är i procent av
+ägarens säkra maxhastighet. Bara om ägaren tillåter automatik: `auto_start {min,max,intensity,style?}`,
+`auto_end`, `final_now`, `intensity {v}`, `style {v}`, `action {a: boost|wave|edge|rest}`, `pause`,
+`resume`. Telefonen validerar alla värden.
 
 ## Test
 

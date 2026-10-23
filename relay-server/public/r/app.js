@@ -22,6 +22,8 @@
   let lastSpeedSent = -1;
   let speedTimer = null;
   let toastTimer = null;
+  let claimedAt = 0;
+  let dragging = false;
   let view = 'manual';
 
   function storedResume() {
@@ -162,50 +164,70 @@
     const auto = s.control === 'auto';
     const paused = s.safety === 'paused';
     const stopped = s.safety === 'stopped';
+    const locked = !!s.locked;
+    const hasMachine = s.machines > 0;
 
-    $('time').textContent = clock(s.elapsed);
-    $('remaining').textContent = auto ? (s.remaining === null ? 'obegränsad tid' : 'kvar ' + clock(s.remaining)) : manual ? 'manuell styrning' : 'ingen session';
+    // Automatics only when the phone allows it; otherwise the link is a plain manual mode.
+    $('tabs').classList.toggle('hidden', !s.allowAuto);
+    if (!s.allowAuto && view !== 'manual') showView('manual');
+
     $('speed').textContent = s.speed + ' %';
-    $('phase').textContent = stopped ? 'STOPPAD' : paused ? 'Pausad' : auto ? (s.phase || 'Automatik') : manual ? 'Manuell · mål ' + s.target + ' %' : 'Redo';
-    const who = s.owner === 'remote' ? 'du' : s.owner === 'local' ? 'telefonen' : null;
+    $('phase').textContent = locked ? 'Låst av telefonen' : stopped ? 'STOPPAD' : paused ? 'Pausad'
+      : auto ? (s.phase || 'Automatik') : manual ? (mine ? 'Du styr' : 'Telefonen styr') : 'Redo';
     $('info').textContent = [
-      s.machines + ' maskin' + (s.machines === 1 ? '' : 'er'),
-      'max ' + s.maxSpeed + ' %',
-      who ? 'styrs av ' + who : null,
+      manual && mine ? 'mål ' + s.target + ' %' : null,
+      auto ? (mine ? 'din automatik' : 'telefonens automatik') : null,
+      hasMachine ? 'max ' + s.maxSpeed + ' %' : null,
     ].filter(Boolean).join(' · ');
+    $('clockRow').classList.toggle('hidden', !auto);
+    $('time').textContent = clock(s.elapsed);
+    $('remaining').textContent = s.remaining === null ? ' · obegränsad tid' : ' · kvar ' + clock(s.remaining);
+    $('locked').classList.toggle('hidden', !locked);
 
+    // Hismith: only shown when a machine is connected. The slider takes manual control itself.
+    $('hismith').classList.toggle('hidden', !hasMachine);
+    $('noMachine').classList.toggle('hidden', hasMachine);
+    const busyElsewhere = auto || (manual && !mine);
+    const canSteer = hasMachine && !locked && !busyElsewhere;
     $('speedSlider').max = String(s.maxSpeed);
-    $('manualToggle').textContent = manual && mine ? 'Avsluta manuell styrning' : 'Starta manuell styrning';
-    $('manualToggle').disabled = (auto || (manual && !mine)) || s.machines === 0;
-    $('manualBox').classList.toggle('hidden', !(manual && mine));
-    if (manual && mine && document.activeElement !== $('speedSlider') && !speedTimer) {
-      $('speedSlider').value = String(s.target);
-      $('speedVal').textContent = s.target + ' %';
+    $('speedSlider').disabled = !canSteer;
+    document.querySelectorAll('[data-speed]').forEach(function (b) { b.disabled = !canSteer; });
+    $('hismithNote').textContent = locked ? '' : auto ? 'Automatiken kör – avsluta den för att styra själv.'
+      : manual && !mine ? 'Telefonen styr just nu.' : stopped ? 'Dra i reglaget för att starta igen.' : '';
+    if (!dragging && document.activeElement !== $('speedSlider') && !speedTimer) {
+      const v = manual && mine ? s.target : 0;
+      $('speedSlider').value = String(v);
+      $('speedVal').textContent = v + ' %';
     }
 
-    $('autoStart').disabled = auto || manual || s.machines === 0;
-    const canAct = auto && mine && !paused && !s.final;
+    $('autoStart').disabled = locked || auto || manual || !hasMachine;
+    const canAct = !locked && auto && mine && !paused && !s.final;
     document.querySelectorAll('[data-action]').forEach(function (b) { b.disabled = !canAct; });
     if (auto && document.activeElement !== $('style') && s.style) $('style').value = s.style;
-    $('finalNow').disabled = !(auto && mine);
-    $('autoEnd').disabled = !auto;
+    $('finalNow').disabled = locked || !(auto && mine);
+    $('autoEnd').disabled = locked || !(auto && mine);
     if (document.activeElement !== $('intensity')) {
       $('intensity').value = String(s.intensity);
       $('intensityVal').textContent = s.intensity + ' %';
     }
+    $('pause').disabled = locked || !auto || paused;
+    $('resume').disabled = locked || !paused || !mine;
 
-    $('pause').disabled = !(auto || manual) || paused;
-    $('resume').disabled = !paused || !mine;
-
+    // Lube Launcher: not shown at all when it isn't available (no launcher, not allowed, Pocket).
     const lube = s.lube || {};
-    const showLube = lube.available && (lube.extra || lube.super);
-    $('lubeRow').classList.toggle('hidden', !showLube);
-    $('extra').classList.toggle('hidden', !lube.extra);
-    $('super').classList.toggle('hidden', !lube.super);
-    $('extra').textContent = 'EXTRA SPRUT';
-    $('super').textContent = 'SUPER SPRUT';
-    $('extra').disabled = !!lube.busy;
-    $('super').disabled = !!lube.busy;
+    $('lube').classList.toggle('hidden', !lube.available);
+    const maxMl = Math.max(1, Math.min(30, lube.maxMl || 30));
+    $('ml').max = String(maxMl);
+    if (parseInt($('ml').value, 10) > maxMl) $('ml').value = String(maxMl);
+    renderLube(lube.busy, locked);
+  }
+
+  function renderLube(busy, locked) {
+    const ml = parseInt($('ml').value, 10);
+    $('mlVal').textContent = ml + ' ml';
+    $('pumpVal').textContent = $('pump').value + ' %';
+    $('spray').textContent = busy ? 'Sprutar…' : 'Spruta ' + ml + ' ml';
+    $('spray').disabled = !!busy || !!locked;
   }
 
   function showView(v) {
@@ -214,6 +236,16 @@
     $('tabAuto').classList.toggle('selected', v === 'auto');
     $('manual').classList.toggle('hidden', v !== 'manual');
     $('auto').classList.toggle('hidden', v !== 'auto');
+  }
+
+  /** Moving the slider is the explicit start of manual control (the phone still decides). */
+  function claimManual() {
+    const s = state || {};
+    if (s.control === 'manual' && s.owner === 'remote') return;
+    if (Date.now() - claimedAt < 1500) return; // already asked, waiting for the state
+    claimedAt = Date.now();
+    lastSpeedSent = -1;
+    cmd({ k: 'manual_start' });
   }
 
   function sendSpeedThrottled(v) {
@@ -229,25 +261,29 @@
     }, 120);
   }
 
-  // ------------------------------------------------------------------ wiring
-
-  $('stop').addEventListener('click', function () {
+  function stopAll() {
     if (ws && ws.readyState === 1 && approved) cmd({ k: 'stop' });
     else toast('Ingen anslutning – telefonen stoppar själv inom några sekunder');
     if (navigator.vibrate) navigator.vibrate(80);
-  });
+  }
+
+  // ------------------------------------------------------------------ wiring
+
+  $('stop').addEventListener('click', stopAll);
+  $('lubeStop').addEventListener('click', stopAll);
   $('tabManual').addEventListener('click', function () { showView('manual'); });
   $('tabAuto').addEventListener('click', function () { showView('auto'); });
-  $('manualToggle').addEventListener('click', function () {
-    const s = state || {};
-    if (s.control === 'manual' && s.owner === 'remote') cmd({ k: 'manual_end' });
-    else { lastSpeedSent = -1; cmd({ k: 'manual_start' }); }
+  $('speedSlider').addEventListener('pointerdown', function () { dragging = true; });
+  ['pointerup', 'pointercancel'].forEach(function (t) { window.addEventListener(t, function () { dragging = false; }); });
+  $('speedSlider').addEventListener('input', function (e) {
+    claimManual();
+    sendSpeedThrottled(parseInt(e.target.value, 10));
   });
-  $('speedSlider').addEventListener('input', function (e) { sendSpeedThrottled(parseInt(e.target.value, 10)); });
   document.querySelectorAll('[data-speed]').forEach(function (b) {
     b.addEventListener('click', function () {
       const v = Math.min(parseInt(b.getAttribute('data-speed'), 10), parseInt($('speedSlider').max, 10));
       $('speedSlider').value = String(v);
+      claimManual();
       sendSpeedThrottled(v);
     });
   });
@@ -275,8 +311,12 @@
   $('autoEnd').addEventListener('click', function () { cmd({ k: 'auto_end' }); });
   $('pause').addEventListener('click', function () { cmd({ k: 'pause' }); });
   $('resume').addEventListener('click', function () { cmd({ k: 'resume' }); });
-  $('extra').addEventListener('click', function () { cmd({ k: 'lube', kind: 'extra' }); });
-  $('super').addEventListener('click', function () { cmd({ k: 'lube', kind: 'super' }); });
+  $('ml').addEventListener('input', function () { renderLube(state && state.lube && state.lube.busy, state && state.locked); });
+  $('pump').addEventListener('input', function () { renderLube(state && state.lube && state.lube.busy, state && state.locked); });
+  $('spray').addEventListener('click', function () {
+    cmd({ k: 'spray', ml: parseInt($('ml').value, 10), pump: parseInt($('pump').value, 10) });
+    if (navigator.vibrate) navigator.vibrate(40);
+  });
 
   showView(view);
   connect();

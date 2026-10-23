@@ -1,5 +1,7 @@
 package com.hismith.session.core
 
+import kotlin.math.roundToInt
+
 /**
  * Dose kinds in priority order (spec): STOP → comm loss → final/SUPER → EXTRA → normal → micro.
  * STOP and comm loss are not doses; they go through [DoseController.stopAll].
@@ -21,6 +23,11 @@ data class DoseRequest(
     /** Only for [DoseKind.SERVICE]: run at this speed (negative = reverse) for [serviceMs]. */
     val serviceSpeed: Int = 0,
     val serviceMs: Long = 0,
+    /**
+     * Pump speed picked by the person with the link, in % of the safe max
+     * ([LubeSettings.maxPumpSpeed]) instead of the configured flow. Null = use the flow.
+     */
+    val pumpPct: Int? = null,
 )
 
 /** User settings for the launcher. Validated through [sanitized]. */
@@ -194,9 +201,14 @@ class DoseController(
     }
 
     /** Plan for a normal dose: one stream, or spurts for the final / SUPER when enabled. */
-    private fun planDose(kind: DoseKind, ml: Double): DosePlan? {
+    private fun planDose(kind: DoseKind, ml: Double, pumpPct: Int? = null): DosePlan? {
         val s = settings().sanitized()
         val volume = s.clampMl(kind, ml)
+        if (pumpPct != null && driver?.supportsSpeed != false) {
+            // 100 % is the safe max found in tests, never the pump's raw capacity.
+            val speed = (pumpPct.coerceIn(1, 100) * s.maxPumpSpeed / 100.0).roundToInt().coerceIn(1, s.maxPumpSpeed)
+            return flowModel().plan(volume, flowModel().flowAt(speed), speed, minSpeed = speed)
+        }
         val pulsed = (kind == DoseKind.FINAL && s.pulsedFinal) || (kind == DoseKind.SUPER && s.pulsedSuper)
         return if (pulsed) flowModel().planPulsed(volume, wantedFlow(s, kind), maxSpeedFor(s), s.pulseCount)
         else flowModel().plan(volume, wantedFlow(s, kind), maxSpeedFor(s))
@@ -223,7 +235,7 @@ class DoseController(
             val flow = flowModel().flowAt(kotlin.math.abs(speed))
             return DosePlan(speed, flow, flow * req.serviceMs / 1000.0, segs)
         }
-        return planDose(req.kind, req.ml)
+        return planDose(req.kind, req.ml, req.pumpPct)
     }
 
     fun submit(req: DoseRequest, now: Long): DoseResult {

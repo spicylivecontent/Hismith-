@@ -233,7 +233,7 @@ test('http: health, controller page with strict headers, nothing else', async ()
   assert.equal(page.status, 200);
   assert.match(page.headers.get('content-security-policy'), /default-src 'self'/);
   assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
-  assert.match(await page.text(), /HISMITH REMOTE/);
+  assert.match(await page.text(), /FJÄRRSTYRNING/);
   assert.equal((await fetch(`${env.http}/r/../src/server.js`)).status, 404);
   assert.equal((await fetch(`${env.http}/etc/passwd`)).status, 404);
 });

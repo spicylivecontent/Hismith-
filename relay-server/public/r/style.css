@@ -92,9 +92,17 @@ main { padding: 0 14px; max-width: 560px; margin: 0 auto; }
 .btn.outline { background: transparent; border-color: var(--gold); color: var(--gold-pale); }
 .btn.dark { color: var(--muted); }
 .btn.red { background: var(--red); border-color: var(--gold-light); color: #fff; }
+.btn.red-outline { background: transparent; border-color: var(--red); color: #ff8080; letter-spacing: .08em; }
 
 .label { display: block; color: var(--muted); font-size: 12px; margin-top: 10px; }
 .label b { color: var(--gold-pale); float: right; }
+.label.title { color: var(--text); font-size: 15px; font-weight: 700; margin-top: 4px; }
+.label.title + input[type=range] { margin-top: 2px; }
+.card .label.title ~ .label.title { margin-top: 14px; }
+.note { margin-top: 6px; }
+.time-small { color: var(--gold-pale); font-variant-numeric: tabular-nums; font-weight: 600; }
+#clockRow { margin-top: 6px; }
+.msg.warn { border-color: var(--red); color: #ffb3b3; }
 .label input[type=number] {
   display: block;
   width: 100%;
