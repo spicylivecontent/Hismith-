@@ -20,7 +20,7 @@ automatiken, telefonen, en utmaning eller någon med engångslänken.
 
 | Vad | Var |
 |-----|-----|
-| **App (APK)** | Releases → *Hismith Session v2.0.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
+| **App (APK)** | Releases → *Hismith Session v2.1.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
 | **MegaLube-firmware (.bin)** | Repot [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube) → Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** |
 | **Relay-servern** (för engångslänkar) | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/spicylivecontent/Hismith-) – eller se [relay-server/README.md](relay-server/README.md) |
 
@@ -45,7 +45,7 @@ Uppdateringar installeras rakt över den gamla versionen.
 - **Mikrodos när en burst drar igång** – lubet följer rörelsen i stället för bara en timer.
 - **Statistik:** antal pass, total tid och lube, längsta pass, dagar i rad (🔥), favoritstil och de
   senaste passen. Sparas bara på telefonen.
-- **Diskret läge:** appen syns inte i *senaste appar* och skärmdumpar blockeras.
+- **Diskret läge:** appen döljs i *senaste appar* och skärmdumpar blockeras.
 - **Manuell styrning:** hastighetsreglage (glider mjukt, max 60 %/s) och slaglängd.
 - **Maxhastighet per läge:** automatiken skalas in under taket, manuell styrning och länken kan
   aldrig gå över.
@@ -82,10 +82,10 @@ gratis på Render och uppsatt på ett par minuter, helt från mobilen. Fliken gu
 Sedan:
 
 1. *Skapa länk* → *Dela länken*. Länken fungerar **en gång** och går ut efter 15 minuter.
-3. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
-4. Mottagaren kan styra manuellt eller starta automatik (med stil), trycka ⚡ Boost / 〰 Våg /
+2. När mottagaren öppnar den frågar telefonen om du godkänner (kan stängas av).
+3. Mottagaren kan styra manuellt eller starta automatik (med stil), trycka ⚡ Boost / 〰 Våg /
    🎯 Edge / 💤 Vila, pausa, trycka STOPP och – om du tillåter det – EXTRA/SUPER. Allt inom dina gränser.
-5. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
+4. Tystnar mottagaren stoppas allt den styr efter 4 s och länken återkallas efter 8 s (ställbart).
    Inget startar om av sig självt.
 
 ### ☰ Recept
@@ -145,7 +145,11 @@ En mikrodos avbryter eller staplas aldrig ovanpå en större dos. Totalvolymen p
 - MegaLube-firmwaren stoppar själv vid länkbortfall, utebliven trafik (1 s), utgången lease och efter
   120 s sammanhängande körning.
 - Pocket-läge nekar all lube. Länken kan aldrig gå över telefonens gränser.
-- Relay-servern sparar bara hashar av engångstokens och vet ingenting om maskiner eller lube.
+- Relay-servern sparar bara hashar av engångstokens. Mottagaren (och därmed servern) får bara det
+  som behövs för att styra – aldrig läge, ml-mängder, enhetsnamn eller historik.
+
+Hela hotmodellen (vad som skyddas, mot vem, hur och vad som lämnas utanför) finns i
+[docs/HOTMODELL.md](docs/HOTMODELL.md).
 
 ## MegaLube
 

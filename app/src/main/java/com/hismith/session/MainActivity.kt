@@ -3,6 +3,7 @@ package com.hismith.session
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
@@ -358,6 +359,9 @@ class MainActivity : Activity() {
     fun applyDiscreet() {
         if (settings.discreet) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        try {
+            getSystemService(ActivityManager::class.java)?.appTasks?.forEach { it.setExcludeFromRecents(settings.discreet) }
+        } catch (_: Exception) {}
     }
 
     fun isBrowserVisible(): Boolean = ::browserPanel.isInitialized && browserPanel.visibility == View.VISIBLE

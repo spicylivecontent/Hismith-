@@ -913,7 +913,8 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
                 val ml = if (cmd.kind == DoseKind.SUPER) s.superMl else s.extraMl
                 val r = arbiter.requestDose(Source.REMOTE, cmd.kind, ml, now)
                 reportDose(cmd.kind, r)
-                if (r is DoseResult.Rejected) r.reason else { remoteDoseActive = true; null }
+                // Generic on purpose: the reason could reveal the mode (Pocket) to the remote side.
+                if (r is DoseResult.Rejected) "Lube är inte tillgängligt just nu" else { remoteDoseActive = true; null }
             }
         }
         notice?.let { remote.sendNotice(it) }
@@ -923,15 +924,14 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
     private fun sendRemoteState(now: Long, force: Boolean) {
         if (!remote.isControllerActive) return
         val e = engine
-        val lube = settings.lubeSettings
         val limits = arbiter.limits
         val dose = doses.activeInfo(now)
+        // Data minimisation (spec): only what the controller needs to steer. No mode, no lube
+        // volumes, no device names or reasons, no history – it all passes the relay server.
         val s = JSONObject()
-            .put("mode", arbiter.mode.name)
             .put("control", arbiter.control.name.lowercase())
-            .put("owner", arbiter.owner?.name?.lowercase() ?: JSONObject.NULL)
+            .put("owner", arbiter.owner?.let { if (it == Source.REMOTE) "remote" else "local" } ?: JSONObject.NULL)
             .put("safety", arbiter.safety.name.lowercase())
-            .put("reason", arbiter.reason)
             .put("speed", arbiter.outputSpeed)
             .put("target", arbiter.manualTargetPercent)
             .put("maxSpeed", minOf(limits.maxFor(arbiter.mode), limits.remoteMaxSpeed))
@@ -946,8 +946,6 @@ class SessionService : Service(), MotionOutputs, BleDevices.Listener, MegaLubeLi
                 .put("available", activeLube != null && arbiter.mode.lubeAllowed)
                 .put("extra", limits.remoteAllowExtra)
                 .put("super", limits.remoteAllowSuper)
-                .put("extraMl", lube.extraMl)
-                .put("superMl", lube.superMl)
                 .put("busy", dose != null))
         val json = s.toString()
         if (!force && json == lastRemoteJson) return

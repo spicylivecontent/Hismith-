@@ -166,10 +166,9 @@
     $('time').textContent = clock(s.elapsed);
     $('remaining').textContent = auto ? (s.remaining === null ? 'obegränsad tid' : 'kvar ' + clock(s.remaining)) : manual ? 'manuell styrning' : 'ingen session';
     $('speed').textContent = s.speed + ' %';
-    $('phase').textContent = stopped ? 'STOPPAD' + (s.reason ? ' – ' + s.reason : '') : paused ? 'Pausad' + (s.reason ? ' – ' + s.reason : '') : auto ? (s.phase || 'Automatik') : manual ? 'Manuell · mål ' + s.target + ' %' : 'Redo';
-    const who = s.owner === 'remote' ? 'du' : s.owner === 'local' ? 'telefonen' : s.owner === 'challenge' ? 'utmaningen' : null;
+    $('phase').textContent = stopped ? 'STOPPAD' : paused ? 'Pausad' : auto ? (s.phase || 'Automatik') : manual ? 'Manuell · mål ' + s.target + ' %' : 'Redo';
+    const who = s.owner === 'remote' ? 'du' : s.owner === 'local' ? 'telefonen' : null;
     $('info').textContent = [
-      s.mode === 'ORAL' ? 'Oral' : s.mode === 'ANAL' ? 'Anal' : 'Pocket',
       s.machines + ' maskin' + (s.machines === 1 ? '' : 'er'),
       'max ' + s.maxSpeed + ' %',
       who ? 'styrs av ' + who : null,
@@ -203,8 +202,8 @@
     $('lubeRow').classList.toggle('hidden', !showLube);
     $('extra').classList.toggle('hidden', !lube.extra);
     $('super').classList.toggle('hidden', !lube.super);
-    $('extra').textContent = 'EXTRA ' + Math.round(lube.extraMl || 0) + ' ml';
-    $('super').textContent = 'SUPER ' + Math.round(lube.superMl || 0) + ' ml';
+    $('extra').textContent = 'EXTRA SPRUT';
+    $('super').textContent = 'SUPER SPRUT';
     $('extra').disabled = !!lube.busy;
     $('super').disabled = !!lube.busy;
   }
