@@ -21,7 +21,7 @@ automatiken, telefonen, en utmaning eller någon med engångslänken.
 | Vad | Var |
 |-----|-----|
 | **App (APK)** | Releases → *Hismith Session v2.0.0* → `HismithSession-release.apk` (eller Actions → *Build APK* → Artifacts) |
-| **MegaLube-firmware (.bin)** | Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** (eller Actions → *Build MegaLube firmware* → Artifacts) |
+| **MegaLube-firmware (.bin)** | Repot [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube) → Releases → *MegaLube firmware (senaste)* → `MegaLube-merged.bin`, flashas på **0x0** |
 | **Relay-servern** | `relay-server/` – se [relay-server/README.md](relay-server/README.md) |
 
 Installera APK:n: öppna filen i telefonen → tillåt *Installera från okänd källa* → Installera.
@@ -124,10 +124,9 @@ En mikrodos avbryter eller staplas aldrig ovanpå en större dos. Totalvolymen p
 
 ## MegaLube
 
-Firmware och bygge ligger i [`firmware/megalube/`](firmware/megalube/README.md) (oförändrad
-firmware från MegaLube-paketet + värdtest + CI som bygger `.bin`). Mappen är fristående och kan
-flyttas till ett eget repo – den har en egen workflow. Hårdvara, inköp och kopplingsschema finns i
-Mega-Lube-dokumentet.
+Firmware, värdtest, bygget av `.bin` och Mega-Lube-dokumentet (inköp, kopplingsschema, recept)
+ligger i ett eget repo: [spicylivecontent/MegaLube](https://github.com/spicylivecontent/MegaLube).
+Firmwaren är oförändrad från MegaLube-paketet.
 
 ## Bygga själv
 
@@ -164,7 +163,6 @@ app/src/main/java/com/hismith/session/
 ├── ui/                    Flikarna och egna vyer
 ├── SessionService.kt      Foreground service med styrloop
 └── MainActivity.kt        Flikar, webbläsare, overlay-knappar
-firmware/megalube/         ESP32-firmware + CI för .bin
 relay-server/              Miniservern för engångslänken
 ```
 
@@ -172,7 +170,7 @@ relay-server/              Miniservern för engångslänken
 
 - Hismith BLE: service `FFE5`, skriv `FFE9`. Hastighet `AA 04 <0–100> <sum>` och `FF 03 …`,
   slaglängd `FF 06/07/08` och `CC 07/08/09`. Original-launchern: `CC 0B 01 0C` var 280 ms.
-- MegaLube SPP: se [firmware/megalube/README.md](firmware/megalube/README.md).
+- MegaLube SPP: se [MegaLube-repots README](https://github.com/spicylivecontent/MegaLube#protokoll).
 - Länken: se [relay-server/README.md](relay-server/README.md).
 
 ## Öppna frågor (TBD)
